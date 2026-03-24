@@ -3,7 +3,7 @@ from laurasefue.tokens import (
     TokenType,
     lookup_token_type  # Aún no se usa, pero puede servir después para keywords
 )
-
+from re import match
 
 class Lexer:
     def __init__(self, source: str):
@@ -29,7 +29,7 @@ class Lexer:
         Usa match-case para hacer el código más limpio y más fácil de
         mantener cuando se agreguen más símbolos.
         """
-
+        self._skip_white_spaces()
         match self._character:
             # Si el carácter actual es vacío, significa fin del input
             case '':
@@ -42,7 +42,33 @@ class Lexer:
             # Si encuentra un signo >
             case '>':
                 token = Token(TokenType.GT, self._character)
-
+            case '-':
+                token=Token(TokenType.MINUS,self._character)
+            case '^':
+                token=Token(TokenType.POW,self._character)
+            case '*':
+                token=Token(TokenType.MULTIPLY,self._character)
+            case '%':
+                token=Token(TokenType.MOD,self._character)
+            case '!':
+                if self._peek_token()=="=":
+                    token=self._make_two_character_token(TokenType.DIF)
+                else:
+                    token=Token(TokenType.NEGATION,self._character)
+            case '=':
+                if self._peek_token()=="=":
+                    token=self._make_two_character_token(TokenType.EQ)
+                else:    
+                    token=Token(TokenType.ASSIGN,self._character)
+            #Es letra
+            case _ if self._character.isalpha():
+                literal=self._read_identifier()
+                tokenType=lookup_token_type(literal)
+                token=Token(tokenType,literal)
+            #Es digito
+            case _ if self._character.isdigit():
+                literal=self._read_number()
+                token=Token(TokenType.INTEGER,literal)
             # Cualquier otro carácter no reconocido se marca como ilegal
             case _:
                 print(self._character)  # Útil para depuración
@@ -53,7 +79,9 @@ class Lexer:
 
         # Retorna el token encontrado
         return token
-
+    def _skip_white_spaces(self)->None:
+        while match(r'^\s$',self._character):
+            self._read_character()
     def _read_character(self) -> None:
         """
         Lee el siguiente carácter del input y actualiza
@@ -73,3 +101,22 @@ class Lexer:
 
         # Avanza la posición de lectura al siguiente carácter
         self._read_position += 1
+    def _read_number(self):
+        start=self._position
+        while self._character.isdigit():
+            self._read_character()
+        return self._source[start:self._position]
+    def _read_identifier(self):
+        start=self._position
+        while self._character.isalpha():
+            self._read_character()
+        return self._source[start:self._position]
+    def _peek_token(self)->str:
+        if self._read_position>=len(self._source):
+            return ''
+        return self._source[self._read_position]
+    def _make_two_character_token(self,token_type:TokenType)->Token:
+        prefix=self._character
+        self._read_character()
+        suffix=self._character
+        return Token(token_type,f'{prefix}{suffix}')

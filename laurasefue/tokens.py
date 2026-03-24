@@ -31,7 +31,9 @@ class TokenType(Enum):
     PLUS = auto()         # +
     MINUS = auto()        # -
     NEGATION = auto()     # ! (negación)
-
+    POW = auto()           # ^ POTENCIA
+    MULTIPLY = auto()
+    MOD = auto()
     # Delimitadores
     LPAREN = auto()       # (
     LBRACE = auto()       # {
@@ -51,6 +53,9 @@ class TokenType(Enum):
     ELSEIF = auto()       # elseif
     FOR = auto()          # for
     WHILE = auto()        # while
+    RETURN = auto()
+    BREAK = auto()
+    CONTINUE = auto()
 
     # Tokens especiales
     EOF = auto()          # Fin del archivo/input
@@ -94,7 +99,9 @@ def lookup_token_type(literal: str) -> TokenType:
         'if': TokenType.IF,
         'else': TokenType.ELSE,
         'elseif': TokenType.ELSEIF,
-        'while': TokenType.WHILE
+        'while': TokenType.WHILE,
+        'return': TokenType.RETURN,
+        'continue':TokenType.CONTINUE
     }
 
     # Si el literal está en keywords → retorna su tipo
