@@ -1,0 +1,90 @@
+// =============================================================================
+// errores.lf — Archivo de demostración de errores del intérprete
+//
+// INSTRUCCIONES: Descomenta UN solo bloque a la vez para ver cada error.
+// El intérprete mostrará un mensaje descriptivo y se detendrá.
+// =============================================================================
+
+
+// ─── ERROR 1: Variable no definida ───────────────────────────────────────────
+// Se intenta usar una variable que nunca fue declarada con 'let'.
+//
+// MENSAJE ESPERADO:
+//   [ERROR] variable no definida: "z"
+
+print(z);
+
+
+// ─── ERROR 2: División por cero ──────────────────────────────────────────────
+// División o módulo entre cero.
+// Descomenta para probar (y comenta el bloque anterior):
+//
+// MENSAJE ESPERADO:
+//   [ERROR] División por cero
+
+// let a = 10;
+// let b = 0;
+// print(a / b);
+
+
+// ─── ERROR 3: Tipos incompatibles ────────────────────────────────────────────
+// Intentar sumar un número con un booleano.
+//
+// MENSAJE ESPERADO:
+//   [ERROR] Tipos incompatibles: INTEGER + BOOLEAN
+
+// let x = 5 + true;
+// print(x);
+
+
+// ─── ERROR 4: Llamar algo que no es función ───────────────────────────────────
+// Intentar llamar a una variable entera como si fuera función.
+//
+// MENSAJE ESPERADO:
+//   [ERROR] "numero" no es una función (es INTEGER)
+
+// let numero = 42;
+// numero(10);
+
+
+// ─── ERROR 5: Número incorrecto de argumentos ─────────────────────────────────
+// Llamar a una función con más o menos argumentos de los esperados.
+//
+// MENSAJE ESPERADO:
+//   [ERROR] Número incorrecto de argumentos: se esperaban 2, se recibieron 3
+
+// let suma = function(a, b) {
+//     return a + b;
+// };
+// print(suma(1, 2, 3));
+
+
+// ─── ERROR 6: Operador "-" en un string ──────────────────────────────────────
+// Aplicar el operador de negación numérica a un string.
+//
+// MENSAJE ESPERADO:
+//   [ERROR] Operador "-" no soportado para el tipo STRING
+
+// let texto = "hola";
+// print(-texto);
+
+
+// ─── ERROR 7: Operador no soportado entre strings ────────────────────────────
+// Intentar restar dos strings (solo + está soportado entre strings).
+//
+// MENSAJE ESPERADO:
+//   [ERROR] Operador "-" no soportado entre strings
+
+// let s1 = "hola";
+// let s2 = "mundo";
+// print(s1 - s2);
+
+
+// ─── ERROR 8: Error de SINTAXIS — falta el '=' en un let ─────────────────────
+// El parser detecta esto ANTES de ejecutar; muestra errores de sintaxis.
+//
+// MENSAJE ESPERADO:
+//   Errores de sintaxis encontrados:
+//   → Se esperaba 'ASSIGN' pero se encontró 'SEMICOLON' (literal: ';')
+
+// let x;
