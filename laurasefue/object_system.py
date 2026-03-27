@@ -319,14 +319,42 @@ class Environment:
 
     def set(self, name: str, value: Object) -> Object:
         """
-        Asigna o actualiza una variable en el entorno LOCAL.
+        Asigna o actualiza una variable.
 
-        Nota: siempre escribe en el entorno actual, no en el padre.
-        Para modificar una variable del padre habría que implementar
-        una búsqueda similar a get(), pero eso no es necesario aquí.
+        Estrategia:
+          1. Si la variable YA EXISTE en este entorno o en algún entorno padre,
+             la actualiza en el entorno más cercano donde fue definida.
+             Esto permite que 'let s = s + 1' dentro de un for actualice
+             la 's' del entorno exterior (el que la declaró originalmente).
+          2. Si la variable NO EXISTE en ningún nivel (es nueva), se crea
+             en el entorno LOCAL actual.
+
+        Esta semántica es importante para los bucles (for/while): si se
+        declara 'let i = 0' antes del bucle y se hace 'let i = i + 1'
+        dentro, se actualiza la misma 'i' exterior.
         """
-        self._store[name] = value
+        # Busca el entorno más cercano que ya tenga esta variable
+        env = self._find_env(name)
+        if env is not None:
+            # La variable existe en algún nivel → actualizar allí
+            env._store[name] = value
+        else:
+            # Variable nueva → crearla en el entorno local
+            self._store[name] = value
         return value
+
+    def _find_env(self, name: str) -> 'Optional[Environment]':
+        """
+        Busca el entorno más cercano (local → padre → abuelo → ...) que
+        contenga la variable con el nombre dado.
+
+        Retorna ese Environment, o None si no se encuentra en ningún nivel.
+        """
+        if name in self._store:
+            return self
+        if self._outer is not None:
+            return self._outer._find_env(name)
+        return None
 
     @classmethod
     def new_enclosed(cls, outer: 'Environment') -> 'Environment':
