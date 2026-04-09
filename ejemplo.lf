@@ -152,10 +152,10 @@ print(factorial(5));    // 120
 print(factorial(10));   // 3628800
 
 
-print("=== Fibonacci (recursión) ===");
+print("=== Fibonacci (iterativo) ===");
 
 // fibonacci(n) retorna el n-ésimo número de la secuencia de Fibonacci
-// fib(0) = 0, fib(1) = 1, fib(n) = fib(n-1) + fib(n-2)
+// Versión iterativa: evita la recursión doble exponencial
 let fibonacci = function(n) {
     if (n == 0) {
         return 0;
@@ -163,7 +163,16 @@ let fibonacci = function(n) {
     if (n == 1) {
         return 1;
     }
-    return fibonacci(n - 1) + fibonacci(n - 2);
+    let a = 0;
+    let b = 1;
+    let i = 2;
+    while (i <= n) {
+        let temp = a + b;
+        let a = b;
+        let b = temp;
+        let i = i + 1;
+    }
+    return b;
 };
 
 // Imprimir los primeros 10 números de Fibonacci

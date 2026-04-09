@@ -14,6 +14,10 @@
 # =============================================================================
 
 import sys                                    # Para leer argumentos de línea de comandos
+
+# El intérprete es tree-walking: cada llamada a función del lenguaje consume
+# varios frames de Python. Subimos el límite para soportar recursión profunda.
+sys.setrecursionlimit(50_000)
 from laurasefue.lexer import Lexer            # Analizador léxico
 from laurasefue.parser import Parser          # Analizador sintáctico
 from laurasefue.evaluator import evaluate     # Evaluador del AST
@@ -89,12 +93,22 @@ def main() -> None:
     """
     # Verifica que el usuario haya pasado el nombre del archivo
     if len(sys.argv) != 2:
-        print('Uso: python main.py <archivo.lf>')
-        print('Ejemplo: python main.py mi_programa.lf')
+        print('Uso: python3 main.py <archivo.lf>')
+        print('Ejemplo: python3 main.py mi_programa.lf')
         sys.exit(1)
 
     filepath = sys.argv[1]   # El primer argumento es la ruta al archivo
-    run_file(filepath)
+
+    # Capturamos RecursionError para dar un mensaje más amigable al usuario
+    try:
+        run_file(filepath)
+    except RecursionError:
+        print('═' * 50)
+        print('  Error: recursión demasiado profunda.')
+        print('  Verifica que tus funciones recursivas tengan')
+        print('  un caso base correcto, o reduce la profundidad.')
+        print('═' * 50)
+        sys.exit(1)
 
 
 if __name__ == '__main__':
