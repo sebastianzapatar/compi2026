@@ -101,7 +101,7 @@ class Lexer:
                     token = Token(TokenType.ASSIGN, self._character)
 
             # ── Negación / distinto: ! y != ───────────────────────────────────
-            case '!':
+            case '!':# <>
                 if self._peek_character() == '=':
                     token = self._make_two_character_token(TokenType.DIF)
                 else:

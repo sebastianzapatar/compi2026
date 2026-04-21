@@ -1,0 +1,2624 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LauraSeFue — Construyendo un Intérprete desde Cero</title>
+    <meta name="description" content="Presentación del proyecto de compiladores 2026 - Desarrollo del intérprete LauraSeFue">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        /* ============================================================
+           RESET & VARIABLES
+           ============================================================ */
+        *, *::before, *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: rgba(17, 24, 39, 0.7);
+            --bg-glass: rgba(255, 255, 255, 0.04);
+
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+
+            --accent-blue: #3b82f6;
+            --accent-purple: #8b5cf6;
+            --accent-pink: #ec4899;
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-rose: #f43f5e;
+            --accent-indigo: #6366f1;
+
+            --gradient-primary: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            --gradient-warm: linear-gradient(135deg, #f43f5e, #f59e0b);
+            --gradient-cool: linear-gradient(135deg, #06b6d4, #10b981);
+            --gradient-deep: linear-gradient(135deg, #6366f1, #ec4899);
+
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 24px;
+
+            --shadow-glow: 0 0 60px rgba(99, 102, 241, 0.15);
+            --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* ============================================================
+           NAVIGATION BAR
+           ============================================================ */
+        .navbar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 56px;
+            background: rgba(10, 14, 26, 0.85);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 32px;
+            z-index: 1000;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: -0.02em;
+        }
+
+        .navbar-brand .logo-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+        }
+
+        .navbar-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .slide-counter {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            background: var(--bg-glass);
+            padding: 6px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        .nav-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-glass);
+            color: var(--text-secondary);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+            font-size: 1rem;
+        }
+
+        .nav-btn:hover {
+            background: rgba(255, 255, 255, 0.08);
+            color: var(--text-primary);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .nav-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        /* ============================================================
+           PROGRESS BAR
+           ============================================================ */
+        .progress-bar {
+            position: fixed;
+            top: 56px;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: rgba(255, 255, 255, 0.04);
+            z-index: 999;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--gradient-primary);
+            transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 0 3px 3px 0;
+            box-shadow: 0 0 12px rgba(99, 102, 241, 0.4);
+        }
+
+        /* ============================================================
+           SLIDES CONTAINER
+           ============================================================ */
+        .slides-container {
+            position: fixed;
+            top: 59px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+        }
+
+        .slide {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 60px;
+            opacity: 0;
+            transform: translateX(100px);
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            pointer-events: none;
+            overflow-y: auto;
+        }
+
+        .slide.active {
+            opacity: 1;
+            transform: translateX(0);
+            pointer-events: auto;
+        }
+
+        .slide.exit-left {
+            opacity: 0;
+            transform: translateX(-100px);
+        }
+
+        .slide-content {
+            max-width: 1100px;
+            width: 100%;
+        }
+
+        /* ============================================================
+           BACKGROUND EFFECTS
+           ============================================================ */
+        .bg-orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            opacity: 0.12;
+            pointer-events: none;
+            z-index: 0;
+            animation: float 20s ease-in-out infinite;
+        }
+
+        .bg-orb-1 {
+            width: 500px;
+            height: 500px;
+            background: var(--accent-indigo);
+            top: -200px;
+            right: -100px;
+        }
+
+        .bg-orb-2 {
+            width: 400px;
+            height: 400px;
+            background: var(--accent-purple);
+            bottom: -150px;
+            left: -100px;
+            animation-delay: -7s;
+        }
+
+        .bg-orb-3 {
+            width: 300px;
+            height: 300px;
+            background: var(--accent-cyan);
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            animation-delay: -14s;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0); }
+            33% { transform: translate(30px, -30px); }
+            66% { transform: translate(-20px, 20px); }
+        }
+
+        /* ============================================================
+           TYPOGRAPHY
+           ============================================================ */
+        .slide-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: var(--accent-blue);
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .slide-label::before {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 2px;
+            background: var(--accent-blue);
+            border-radius: 2px;
+        }
+
+        h1.slide-title {
+            font-size: 3.2rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            line-height: 1.1;
+            margin-bottom: 20px;
+        }
+
+        h2.slide-title {
+            font-size: 2.4rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+            margin-bottom: 16px;
+        }
+
+        .gradient-text {
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-warm {
+            background: var(--gradient-warm);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-cool {
+            background: var(--gradient-cool);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .gradient-deep {
+            background: var(--gradient-deep);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .slide-subtitle {
+            font-size: 1.15rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+            max-width: 700px;
+        }
+
+        /* ============================================================
+           CARDS & GRID
+           ============================================================ */
+        .cards-grid {
+            display: grid;
+            gap: 16px;
+            margin-top: 32px;
+        }
+
+        .cards-grid-2 { grid-template-columns: 1fr 1fr; }
+        .cards-grid-3 { grid-template-columns: 1fr 1fr 1fr; }
+        .cards-grid-4 { grid-template-columns: 1fr 1fr 1fr 1fr; }
+
+        .card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .card:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-card);
+        }
+
+        .card:hover::before {
+            opacity: 1;
+        }
+
+        .card-blue::before { background: var(--gradient-primary); }
+        .card-purple::before { background: linear-gradient(90deg, var(--accent-purple), var(--accent-pink)); }
+        .card-cyan::before { background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald)); }
+        .card-amber::before { background: linear-gradient(90deg, var(--accent-amber), var(--accent-rose)); }
+        .card-emerald::before { background: linear-gradient(90deg, var(--accent-emerald), var(--accent-cyan)); }
+        .card-rose::before { background: linear-gradient(90deg, var(--accent-rose), var(--accent-amber)); }
+
+        .card-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: var(--radius-md);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.3rem;
+            margin-bottom: 14px;
+        }
+
+        .icon-blue { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+        .icon-purple { background: rgba(139, 92, 246, 0.15); color: var(--accent-purple); }
+        .icon-cyan { background: rgba(6, 182, 212, 0.15); color: var(--accent-cyan); }
+        .icon-amber { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); }
+        .icon-emerald { background: rgba(16, 185, 129, 0.15); color: var(--accent-emerald); }
+        .icon-rose { background: rgba(244, 63, 94, 0.15); color: var(--accent-rose); }
+        .icon-indigo { background: rgba(99, 102, 241, 0.15); color: var(--accent-indigo); }
+
+        .card h3 {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.01em;
+        }
+
+        .card p {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .card-number {
+            position: absolute;
+            top: 16px;
+            right: 18px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            background: var(--bg-glass);
+            padding: 3px 10px;
+            border-radius: 12px;
+        }
+
+        /* ============================================================
+           CODE BLOCKS
+           ============================================================ */
+        .code-block {
+            background: #0d1117;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-md);
+            padding: 20px 24px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            line-height: 1.8;
+            overflow-x: auto;
+            position: relative;
+        }
+
+        .code-block .code-label {
+            position: absolute;
+            top: 10px;
+            right: 14px;
+            font-size: 0.65rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            background: rgba(255, 255, 255, 0.04);
+            padding: 3px 10px;
+            border-radius: 6px;
+        }
+
+        .code-keyword { color: #ff79c6; }
+        .code-string { color: #f1fa8c; }
+        .code-number { color: #bd93f9; }
+        .code-comment { color: #6272a4; font-style: italic; }
+        .code-function { color: #50fa7b; }
+        .code-operator { color: #8be9fd; }
+        .code-punctuation { color: #94a3b8; }
+        .code-identifier { color: #f8f8f2; }
+        .code-type { color: #8be9fd; }
+        .code-builtin { color: #ffb86c; }
+
+        /* ============================================================
+           PIPELINE / FLOW DIAGRAM
+           ============================================================ */
+        .pipeline {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 28px 0;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .pipeline-step {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: var(--radius-md);
+            padding: 14px 20px;
+            transition: all 0.3s ease;
+            cursor: default;
+        }
+
+        .pipeline-step:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .pipeline-step-icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            flex-shrink: 0;
+        }
+
+        .pipeline-step-text h4 {
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+
+        .pipeline-step-text span {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+        }
+
+        .pipeline-arrow {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           PHASE HEADER
+           ============================================================ */
+        .phase-header {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            margin-bottom: 24px;
+        }
+
+        .phase-badge {
+            width: 56px;
+            height: 56px;
+            border-radius: var(--radius-lg);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+
+        .phase-info {
+            flex: 1;
+        }
+
+        .phase-info .phase-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-bottom: 4px;
+        }
+
+        .phase-info h2 {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* ============================================================
+           TWO COLUMN LAYOUT
+           ============================================================ */
+        .two-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 28px;
+            margin-top: 20px;
+        }
+
+        .two-col-left, .two-col-right {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        /* ============================================================
+           TOKEN TABLE
+           ============================================================ */
+        .token-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.82rem;
+        }
+
+        .token-table th {
+            text-align: left;
+            padding: 10px 14px;
+            font-weight: 600;
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .token-table td {
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            color: var(--text-secondary);
+        }
+
+        .token-table td:first-child {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-purple);
+            font-weight: 500;
+        }
+
+        .token-table td:nth-child(2) {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-cyan);
+        }
+
+        /* ============================================================
+           FEATURE TAGS
+           ============================================================ */
+        .tags-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            font-weight: 500;
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: var(--bg-glass);
+            color: var(--text-secondary);
+            transition: all 0.2s;
+        }
+
+        .tag:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            color: var(--text-primary);
+        }
+
+        .tag-blue { border-color: rgba(59, 130, 246, 0.3); color: var(--accent-blue); }
+        .tag-purple { border-color: rgba(139, 92, 246, 0.3); color: var(--accent-purple); }
+        .tag-cyan { border-color: rgba(6, 182, 212, 0.3); color: var(--accent-cyan); }
+        .tag-emerald { border-color: rgba(16, 185, 129, 0.3); color: var(--accent-emerald); }
+        .tag-amber { border-color: rgba(245, 158, 11, 0.3); color: var(--accent-amber); }
+        .tag-rose { border-color: rgba(244, 63, 94, 0.3); color: var(--accent-rose); }
+
+        /* ============================================================
+           AST TREE VISUALIZATION
+           ============================================================ */
+        .ast-tree {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.78rem;
+        }
+
+        .ast-node {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 8px 16px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.3s;
+        }
+
+        .ast-node:hover {
+            border-color: rgba(99, 102, 241, 0.4);
+            box-shadow: 0 0 20px rgba(99, 102, 241, 0.1);
+        }
+
+        .ast-connector {
+            width: 2px;
+            height: 14px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .ast-children {
+            display: flex;
+            gap: 24px;
+            position: relative;
+        }
+
+        .ast-children::before {
+            content: '';
+            position: absolute;
+            top: -4px;
+            left: 25%;
+            right: 25%;
+            height: 2px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        /* ============================================================
+           TIMELINE
+           ============================================================ */
+        .timeline {
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            margin-top: 20px;
+        }
+
+        .timeline-item {
+            display: flex;
+            gap: 18px;
+            position: relative;
+            padding-bottom: 24px;
+        }
+
+        .timeline-item:last-child {
+            padding-bottom: 0;
+        }
+
+        .timeline-marker {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .timeline-dot {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.85rem;
+            font-weight: 700;
+            flex-shrink: 0;
+            z-index: 1;
+        }
+
+        .timeline-line {
+            width: 2px;
+            flex: 1;
+            background: rgba(255, 255, 255, 0.06);
+            margin-top: 4px;
+        }
+
+        .timeline-item:last-child .timeline-line {
+            display: none;
+        }
+
+        .timeline-content {
+            padding-top: 6px;
+        }
+
+        .timeline-content h4 {
+            font-size: 0.95rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .timeline-content p {
+            font-size: 0.82rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ============================================================
+           HIERARCHY / LIST
+           ============================================================ */
+        .hierarchy-list {
+            list-style: none;
+            font-size: 0.88rem;
+        }
+
+        .hierarchy-list li {
+            padding: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--text-secondary);
+        }
+
+        .hierarchy-list li .hi-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.7rem;
+            flex-shrink: 0;
+        }
+
+        .hierarchy-list li code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            background: rgba(139, 92, 246, 0.12);
+            color: var(--accent-purple);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* ============================================================
+           MINI SECTION
+           ============================================================ */
+        .mini-section {
+            margin-top: 16px;
+        }
+
+        .mini-section h3 {
+            font-size: 0.88rem;
+            font-weight: 600;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .mini-section h3 .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* ============================================================
+           SIDEBAR NAVIGATION
+           ============================================================ */
+        .sidebar-nav {
+            position: fixed;
+            right: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            z-index: 100;
+        }
+
+        .sidebar-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.12);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            padding: 0;
+        }
+
+        .sidebar-dot.active {
+            background: var(--accent-blue);
+            box-shadow: 0 0 10px rgba(59, 130, 246, 0.4);
+            transform: scale(1.4);
+        }
+
+        .sidebar-dot:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.3);
+        }
+
+        /* ============================================================
+           KEYBOARD HINTS
+           ============================================================ */
+        .keyboard-hint {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            z-index: 100;
+            opacity: 0.6;
+            transition: opacity 0.3s;
+        }
+
+        .keyboard-hint:hover {
+            opacity: 1;
+        }
+
+        .kbd {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 24px;
+            height: 24px;
+            padding: 0 6px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 500;
+        }
+
+        /* ============================================================
+           ANIMATIONS
+           ============================================================ */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .animate-in {
+            animation: fadeInUp 0.5s ease forwards;
+        }
+
+        .animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
+        .animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
+        .animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
+        .animate-delay-4 { animation-delay: 0.4s; opacity: 0; }
+        .animate-delay-5 { animation-delay: 0.5s; opacity: 0; }
+        .animate-delay-6 { animation-delay: 0.6s; opacity: 0; }
+
+        /* ============================================================
+           GIT BRANCH VISUAL
+           ============================================================ */
+        .branch-visual {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            margin-top: 16px;
+        }
+
+        .branch-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 10px 16px;
+            background: var(--bg-glass);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-sm);
+            transition: all 0.2s;
+        }
+
+        .branch-item:hover {
+            border-color: rgba(255, 255, 255, 0.12);
+        }
+
+        .branch-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .branch-name {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+            font-weight: 600;
+        }
+
+        .branch-desc {
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
+
+        /* ============================================================
+           BIG STAT
+           ============================================================ */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-top: 24px;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 20px 12px;
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-md);
+        }
+
+        .stat-number {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2rem;
+            font-weight: 800;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        /* ============================================================
+           FILE TREE
+           ============================================================ */
+        .file-tree {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.8rem;
+            line-height: 2;
+            color: var(--text-secondary);
+            background: #0d1117;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: var(--radius-md);
+            padding: 20px 24px;
+        }
+
+        .file-tree .folder { color: var(--accent-blue); }
+        .file-tree .file-py { color: var(--accent-emerald); }
+        .file-tree .file-lf { color: var(--accent-amber); }
+        .file-tree .file-md { color: var(--accent-purple); }
+        .file-tree .indent { margin-left: 20px; }
+        .file-tree .indent-2 { margin-left: 40px; }
+
+        /* ============================================================
+           HORIZONTAL TIMELINE
+           ============================================================ */
+        .h-timeline {
+            display: flex;
+            align-items: flex-start;
+            gap: 0;
+            margin-top: 28px;
+            position: relative;
+            overflow-x: auto;
+            padding-bottom: 8px;
+        }
+
+        .h-timeline::before {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 24px;
+            right: 24px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--accent-blue), var(--accent-purple), var(--accent-cyan), var(--accent-emerald), var(--accent-amber), var(--accent-rose));
+            opacity: 0.4;
+        }
+
+        .h-timeline-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            min-width: 100px;
+            position: relative;
+            text-align: center;
+        }
+
+        .h-timeline-dot {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1rem;
+            z-index: 1;
+            margin-bottom: 12px;
+            transition: all 0.3s;
+        }
+
+        .h-timeline-item:hover .h-timeline-dot {
+            transform: scale(1.15);
+        }
+
+        .h-timeline-year {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .h-timeline-name {
+            font-size: 0.78rem;
+            font-weight: 600;
+            margin-bottom: 2px;
+        }
+
+        .h-timeline-desc {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            line-height: 1.4;
+            max-width: 110px;
+        }
+
+        /* ============================================================
+           COMPARISON GRID
+           ============================================================ */
+        .compare-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            margin-top: 16px;
+        }
+
+        .compare-cell {
+            padding: 16px 20px;
+            background: var(--bg-secondary);
+        }
+
+        .compare-cell.header {
+            font-weight: 600;
+            font-size: 0.82rem;
+            color: var(--text-primary);
+        }
+
+        .compare-cell p {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        /* ============================================================
+           QUOTE BLOCK
+           ============================================================ */
+        .quote-block {
+            border-left: 3px solid var(--accent-indigo);
+            padding: 16px 20px;
+            margin: 16px 0;
+            background: rgba(99, 102, 241, 0.06);
+            border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+            font-style: italic;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+
+        .quote-block .quote-author {
+            font-style: normal;
+            font-weight: 600;
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            margin-top: 8px;
+            display: block;
+        }
+
+        /* ============================================================
+           RESPONSIVE
+           ============================================================ */
+        @media (max-width: 900px) {
+            .slide {
+                padding: 24px 28px;
+            }
+            h1.slide-title { font-size: 2.2rem; }
+            h2.slide-title { font-size: 1.6rem; }
+            .cards-grid-3, .cards-grid-4 { grid-template-columns: 1fr 1fr; }
+            .two-col { grid-template-columns: 1fr; }
+            .stat-grid { grid-template-columns: repeat(2, 1fr); }
+            .pipeline { flex-direction: column; }
+            .h-timeline { flex-wrap: wrap; gap: 16px; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Background Effects -->
+    <div class="bg-orb bg-orb-1"></div>
+    <div class="bg-orb bg-orb-2"></div>
+    <div class="bg-orb bg-orb-3"></div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar" id="navbar">
+        <div class="navbar-brand">
+            <div class="logo-icon">🧠</div>
+            <span>LauraSeFue</span>
+        </div>
+        <div class="navbar-controls">
+            <span class="slide-counter" id="slideCounter">01 / 18</span>
+            <button class="nav-btn" id="prevBtn" onclick="prevSlide()" aria-label="Diapositiva anterior">←</button>
+            <button class="nav-btn" id="nextBtn" onclick="nextSlide()" aria-label="Diapositiva siguiente">→</button>
+        </div>
+    </nav>
+
+    <!-- Progress Bar -->
+    <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <!-- Sidebar Navigation -->
+    <div class="sidebar-nav" id="sidebarNav"></div>
+
+    <!-- Keyboard Hints -->
+    <div class="keyboard-hint">
+        <span class="kbd">←</span> <span class="kbd">→</span> para navegar &nbsp;·&nbsp; <span class="kbd">F</span> pantalla completa
+    </div>
+
+    <!-- ================================================================
+         SLIDES
+         ================================================================ -->
+    <div class="slides-container">
+
+        <!-- SLIDE 1: Title -->
+        <div class="slide active" data-slide="0">
+            <div class="slide-content" style="text-align: center;">
+                <div class="slide-label animate-in animate-delay-1" style="justify-content: center;">Compiladores 2026</div>
+                <h1 class="slide-title animate-in animate-delay-2">
+                    Construyendo un<br><span class="gradient-text">Intérprete</span> desde Cero
+                </h1>
+                <p class="slide-subtitle animate-in animate-delay-3" style="margin: 0 auto 32px;">
+                    Diseño e implementación del lenguaje de programación <strong>LauraSeFue</strong> — 
+                    un intérprete tree-walking completo en Python con soporte para funciones, 
+                    recursión, closures y más.
+                </p>
+                <div class="pipeline animate-in animate-delay-4">
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-icon icon-blue">📝</div>
+                        <div class="pipeline-step-text">
+                            <h4>Código Fuente</h4>
+                            <span>.lf</span>
+                        </div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-icon icon-purple">🔍</div>
+                        <div class="pipeline-step-text">
+                            <h4>Lexer</h4>
+                            <span>Tokens</span>
+                        </div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-icon icon-cyan">🌳</div>
+                        <div class="pipeline-step-text">
+                            <h4>Parser</h4>
+                            <span>AST</span>
+                        </div>
+                    </div>
+                    <div class="pipeline-arrow">→</div>
+                    <div class="pipeline-step">
+                        <div class="pipeline-step-icon icon-emerald">⚡</div>
+                        <div class="pipeline-step-text">
+                            <h4>Evaluador</h4>
+                            <span>Resultado</span>
+                        </div>
+                    </div>
+                </div>
+                <p class="animate-in animate-delay-5" style="color: var(--text-muted); font-size: 0.85rem; margin-top: 24px;">
+                    Profesor: Sebastián Zapata &nbsp;·&nbsp; Lenguaje: Python 3.14 &nbsp;·&nbsp; Paradigma: Imperativo
+                </p>
+            </div>
+        </div>
+
+        <!-- SLIDE 2: History of Programming Languages Part 1 -->
+        <div class="slide" data-slide="1">
+            <div class="slide-content">
+                <div class="slide-label">Contexto Histórico</div>
+                <h2 class="slide-title">Historia de los <span class="gradient-warm">Lenguajes</span> de Programación</h2>
+                <p class="slide-subtitle">
+                    Desde las primeras instrucciones mecánicas hasta los lenguajes modernos, la historia de la programación es una búsqueda constante por <strong>elevar el nivel de abstracción</strong>.
+                </p>
+
+                <div class="h-timeline">
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-amber" style="background:rgba(245,158,11,0.2);color:var(--accent-amber);">🔧</div>
+                        <div class="h-timeline-year" style="color:var(--accent-amber);">1843</div>
+                        <div class="h-timeline-name">Ada Lovelace</div>
+                        <div class="h-timeline-desc">Primer algoritmo publicado para la máquina analítica</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-rose" style="background:rgba(244,63,94,0.2);color:var(--accent-rose);">⚙️</div>
+                        <div class="h-timeline-year" style="color:var(--accent-rose);">1957</div>
+                        <div class="h-timeline-name">FORTRAN</div>
+                        <div class="h-timeline-desc">Primer lenguaje compilado de alto nivel (IBM)</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-purple" style="background:rgba(139,92,246,0.2);color:var(--accent-purple);">🧠</div>
+                        <div class="h-timeline-year" style="color:var(--accent-purple);">1958</div>
+                        <div class="h-timeline-name">LISP</div>
+                        <div class="h-timeline-desc">Primer lenguaje funcional con garbage collection</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-blue" style="background:rgba(59,130,246,0.2);color:var(--accent-blue);">📐</div>
+                        <div class="h-timeline-year" style="color:var(--accent-blue);">1972</div>
+                        <div class="h-timeline-name">C</div>
+                        <div class="h-timeline-desc">Lenguaje de sistemas, base de Unix y la computación moderna</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-cyan" style="background:rgba(6,182,212,0.2);color:var(--accent-cyan);">☕</div>
+                        <div class="h-timeline-year" style="color:var(--accent-cyan);">1995</div>
+                        <div class="h-timeline-name">Java & JS</div>
+                        <div class="h-timeline-desc">Máquina virtual (JVM) e intérprete en el navegador</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-emerald" style="background:rgba(16,185,129,0.2);color:var(--accent-emerald);">🐍</div>
+                        <div class="h-timeline-year" style="color:var(--accent-emerald);">1991→</div>
+                        <div class="h-timeline-name">Python</div>
+                        <div class="h-timeline-desc">Legibilidad como prioridad, tipado dinámico, interpretado</div>
+                    </div>
+                    <div class="h-timeline-item">
+                        <div class="h-timeline-dot icon-indigo" style="background:rgba(99,102,241,0.2);color:var(--accent-indigo);">🦀</div>
+                        <div class="h-timeline-year" style="color:var(--accent-indigo);">2010→</div>
+                        <div class="h-timeline-name">Rust, Go</div>
+                        <div class="h-timeline-desc">Seguridad de memoria y concurrencia moderna</div>
+                    </div>
+                </div>
+
+                <div class="cards-grid cards-grid-3" style="margin-top: 28px;">
+                    <div class="card card-amber">
+                        <div class="card-icon icon-amber">📜</div>
+                        <h3>Generación 1: Código Máquina</h3>
+                        <p>Instrucciones binarias directas al procesador. Nulo nivel de abstracción. Atado a la arquitectura del hardware.</p>
+                    </div>
+                    <div class="card card-purple">
+                        <div class="card-icon icon-purple">🏗️</div>
+                        <h3>Generación 2: Ensamblador</h3>
+                        <p>Mnemónicos como MOV, ADD, JMP. Un paso de abstracción: nombres en vez de números, pero aún ligado a la máquina.</p>
+                    </div>
+                    <div class="card card-cyan">
+                        <div class="card-icon icon-cyan">🚀</div>
+                        <h3>Generación 3+: Alto Nivel</h3>
+                        <p>Expresiones matemáticas, funciones, objetos. El <strong>compilador o intérprete</strong> traduce de lenguaje humano a código máquina.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 3: History Part 2 - The Big Question -->
+        <div class="slide" data-slide="2">
+            <div class="slide-content">
+                <div class="slide-label">La Gran Pregunta</div>
+                <h2 class="slide-title">¿Cómo se <span class="gradient-text">traduce</span> un lenguaje?</h2>
+                <p class="slide-subtitle">
+                    Existen diferentes estrategias para convertir código fuente en resultados. Cada una tiene sus ventajas y aplicaciones.
+                </p>
+
+                <div class="two-col" style="margin-top: 24px;">
+                    <div class="two-col-left">
+                        <div class="card card-rose" style="border-color: rgba(244,63,94,0.15);">
+                            <div class="card-icon icon-rose">⚙️</div>
+                            <h3>Compilador</h3>
+                            <p>Traduce <strong>todo</strong> el código fuente a código máquina <strong>antes</strong> de ejecutar. El resultado es un ejecutable nativo.</p>
+                            <div class="tags-list" style="margin-top: 10px;">
+                                <span class="tag tag-rose">C</span>
+                                <span class="tag tag-rose">C++</span>
+                                <span class="tag tag-rose">Rust</span>
+                                <span class="tag tag-rose">Go</span>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 0.8rem;">✅ Máximo rendimiento &nbsp; ❌ Ciclo editar→compilar→ejecutar</p>
+                        </div>
+
+                        <div class="card card-amber" style="border-color: rgba(245,158,11,0.15);">
+                            <div class="card-icon icon-amber">☕</div>
+                            <h3>Máquina Virtual (Bytecode)</h3>
+                            <p>Compila a un <strong>código intermedio</strong> (bytecode) que ejecuta una máquina virtual. Portabilidad entre plataformas.</p>
+                            <div class="tags-list" style="margin-top: 10px;">
+                                <span class="tag tag-amber">Java (JVM)</span>
+                                <span class="tag tag-amber">C# (CLR)</span>
+                                <span class="tag tag-amber">Python (CPython)</span>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 0.8rem;">✅ Portabilidad &nbsp; ✅ Optimizaciones JIT</p>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald" style="border-color: rgba(16,185,129,0.25); box-shadow: 0 0 30px rgba(16,185,129,0.08);">
+                            <div class="card-icon icon-emerald">🌳</div>
+                            <h3>Intérprete Tree-Walking ← <span style="color:var(--accent-emerald);">Nosotros</span></h3>
+                            <p>Construye un <strong>Árbol Sintáctico Abstracto</strong> y lo recorre directamente para ejecutar el programa. Sin compilación previa.</p>
+                            <div class="tags-list" style="margin-top: 10px;">
+                                <span class="tag tag-emerald">Ruby (MRI original)</span>
+                                <span class="tag tag-emerald">Primeras versiones de PHP</span>
+                                <span class="tag tag-emerald">LauraSeFue 🧠</span>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 0.8rem;">✅ Sencillo de implementar &nbsp; ✅ Ideal para aprender</p>
+                        </div>
+
+                        <div class="card card-blue">
+                            <div class="card-icon icon-blue">🔄</div>
+                            <h3>Transpilador</h3>
+                            <p>Traduce de un lenguaje de alto nivel a <strong>otro</strong> lenguaje de alto nivel. El segundo lenguaje se encarga de la ejecución.</p>
+                            <div class="tags-list" style="margin-top: 10px;">
+                                <span class="tag tag-blue">TypeScript → JS</span>
+                                <span class="tag tag-blue">Kotlin → JVM/JS</span>
+                                <span class="tag tag-blue">Sass → CSS</span>
+                            </div>
+                            <p style="margin-top: 10px; font-size: 0.8rem;">✅ Mejores abstracciones &nbsp; ✅ Ecosistema existente</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 4: Overview / What we'll build -->
+        <div class="slide" data-slide="3">
+            <div class="slide-content">
+                <div class="slide-label">Visión General</div>
+                <h2 class="slide-title">¿Qué vamos a <span class="gradient-text">construir</span>?</h2>
+                <p class="slide-subtitle">
+                    Un intérprete completo para un lenguaje de programación propio, implementando cada etapa del pipeline de compilación.
+                </p>
+                <div class="stat-grid" style="margin-top: 28px;">
+                    <div class="stat-card">
+                        <div class="stat-number gradient-text">6</div>
+                        <div class="stat-label">Módulos</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number gradient-warm">~90</div>
+                        <div class="stat-label">Tokens</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number gradient-cool">16</div>
+                        <div class="stat-label">Nodos AST</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-number gradient-deep">8</div>
+                        <div class="stat-label">Tipos de Objeto</div>
+                    </div>
+                </div>
+                <div class="cards-grid cards-grid-3" style="margin-top: 24px;">
+                    <div class="card card-blue">
+                        <div class="card-icon icon-blue">🎯</div>
+                        <h3>Aprendizaje real</h3>
+                        <p>Entender cómo se procesan los lenguajes de programación internamente, desde el texto hasta la ejecución.</p>
+                    </div>
+                    <div class="card card-purple">
+                        <div class="card-icon icon-purple">🧩</div>
+                        <h3>Modular y progresivo</h3>
+                        <p>Cada fase se desarrolla en una rama de Git independiente, con pruebas automatizadas para validar.</p>
+                    </div>
+                    <div class="card card-cyan">
+                        <div class="card-icon icon-cyan">🐍</div>
+                        <h3>Python moderno</h3>
+                        <p>Uso de match-case, tipado estático, clases abstractas, enums y patrones de diseño profesionales.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Architecture -->
+        <div class="slide" data-slide="4">
+            <div class="slide-content">
+                <div class="slide-label">Arquitectura</div>
+                <h2 class="slide-title">El <span class="gradient-warm">Pipeline</span> del Intérprete</h2>
+                <p class="slide-subtitle" style="margin-bottom: 28px;">
+                    El intérprete transforma el código fuente en 4 etapas secuenciales. Cada módulo tiene una responsabilidad única.
+                </p>
+
+                <div class="two-col">
+                    <div class="two-col-left">
+                        <div class="timeline">
+                            <div class="timeline-item">
+                                <div class="timeline-marker">
+                                    <div class="timeline-dot icon-blue" style="background: rgba(59,130,246,0.2); color: var(--accent-blue);">1</div>
+                                    <div class="timeline-line"></div>
+                                </div>
+                                <div class="timeline-content">
+                                    <h4 style="color: var(--accent-blue);">Lexer (Análisis Léxico)</h4>
+                                    <p>Lee el código carácter por carácter y lo convierte en una secuencia de tokens significativos.</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-marker">
+                                    <div class="timeline-dot icon-purple" style="background: rgba(139,92,246,0.2); color: var(--accent-purple);">2</div>
+                                    <div class="timeline-line"></div>
+                                </div>
+                                <div class="timeline-content">
+                                    <h4 style="color: var(--accent-purple);">Parser (Análisis Sintáctico)</h4>
+                                    <p>Consume los tokens y construye un Árbol Sintáctico Abstracto (AST) usando un Pratt Parser.</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-marker">
+                                    <div class="timeline-dot icon-cyan" style="background: rgba(6,182,212,0.2); color: var(--accent-cyan);">3</div>
+                                    <div class="timeline-line"></div>
+                                </div>
+                                <div class="timeline-content">
+                                    <h4 style="color: var(--accent-cyan);">Evaluador (Ejecución)</h4>
+                                    <p>Recorre el AST nodo por nodo y ejecuta el programa usando un tree-walking interpreter.</p>
+                                </div>
+                            </div>
+                            <div class="timeline-item">
+                                <div class="timeline-marker">
+                                    <div class="timeline-dot icon-emerald" style="background: rgba(16,185,129,0.2); color: var(--accent-emerald);">4</div>
+                                </div>
+                                <div class="timeline-content">
+                                    <h4 style="color: var(--accent-emerald);">Object System (Valores)</h4>
+                                    <p>Sistema de objetos que representa todos los valores en tiempo de ejecución: enteros, strings, funciones, etc.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="file-tree">
+                            <div><span class="folder">📁 compilador2026/</span></div>
+                            <div class="indent"><span class="file-py">🐍 main.py</span> <span style="color:var(--text-muted)">← punto de entrada</span></div>
+                            <div class="indent"><span class="file-lf">📄 ejemplo.lf</span> <span style="color:var(--text-muted)">← programa de prueba</span></div>
+                            <div class="indent"><span class="folder">📁 laurasefue/</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 tokens.py</span> <span style="color:var(--text-muted)">← definición de tokens</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 lexer.py</span> <span style="color:var(--text-muted)">← analizador léxico</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 ast.py</span> <span style="color:var(--text-muted)">← nodos del AST</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 parser.py</span> <span style="color:var(--text-muted)">← analizador sintáctico</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 evaluator.py</span> <span style="color:var(--text-muted)">← evaluador</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 object_system.py</span> <span style="color:var(--text-muted)">← sistema de tipos</span></div>
+                            <div class="indent-2"><span class="file-py">🐍 repl.py</span> <span style="color:var(--text-muted)">← consola interactiva</span></div>
+                            <div class="indent"><span class="folder">📁 tests/</span></div>
+                            <div class="indent-2"><span class="file-py">🧪 test_lexer.py</span></div>
+                            <div class="indent-2"><span class="file-py">🧪 test_parser.py</span></div>
+                            <div class="indent-2"><span class="file-py">🧪 test_evaluador.py</span></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: Why Tree-Walking is Valuable -->
+        <div class="slide" data-slide="5">
+            <div class="slide-content">
+                <div class="slide-label">Reflexión</div>
+                <h2 class="slide-title">¿Por qué un <span class="gradient-cool">Tree-Walking</span> Interpreter?</h2>
+                <p class="slide-subtitle">
+                    Aunque es la aproximación más sencilla, es extremadamente útil y sus fundamentos son <strong>los mismos</strong> que usan los compiladores más avanzados del mundo.
+                </p>
+
+                <div class="quote-block">
+                    "Si puedes construir un intérprete, puedes entender cualquier compilador. Las fases son las mismas: lexing, parsing, análisis semántico, evaluación. Solo cambia qué haces con el AST al final."
+                    <span class="quote-author">— Robert Nystrom, autor de <em>Crafting Interpreters</em></span>
+                </div>
+
+                <div class="two-col">
+                    <div class="two-col-left">
+                        <div class="card card-cyan">
+                            <h3>🎓 Valor Educativo Incomparable</h3>
+                            <ul style="list-style:none;margin-top:10px;font-size:0.85rem;color:var(--text-secondary);display:flex;flex-direction:column;gap:6px;">
+                                <li>🔍 <strong>Se ven TODAS las fases</strong> del compilador: léxica, sintáctica, semántica y ejecución</li>
+                                <li>🧩 Cada módulo es pequeño y comprensible — no hay "magia" oculta</li>
+                                <li>🐞 Debugging sencillo: se puede inspeccionar cada token, nodo y valor</li>
+                                <li>📚 Los conceptos (precedencia, scoping, closures) son universales y aplican a <em>todo</em> lenguaje</li>
+                            </ul>
+                        </div>
+
+                        <div class="card card-purple">
+                            <h3>🏭 Uso Real en la Industria</h3>
+                            <ul style="list-style:none;margin-top:10px;font-size:0.85rem;color:var(--text-secondary);display:flex;flex-direction:column;gap:6px;">
+                                <li>⚙️ <strong>Configuración y DSLs:</strong> Terraform (HCL), Nginx, YAML processors, Dockerfile</li>
+                                <li>🔬 <strong>Prototipado rápido:</strong> Probar nuevas ideas de lenguaje antes de optimizar</li>
+                                <li>🛡️ <strong>Linting & Formateo:</strong> ESLint, Prettier, Black — todos construyen un AST y lo recorren</li>
+                                <li>📊 <strong>Consultas / Filtros:</strong> jq, GraphQL, SQL parsers</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald">
+                            <h3>🔗 Las Bases son Idénticas</h3>
+                            <p style="margin-bottom: 12px;">Las 3 primeras fases de nuestro intérprete son <strong>exactamente las mismas</strong> que usa GCC, LLVM, V8 (Chrome) o CPython:</p>
+                            <div class="compare-grid">
+                                <div class="compare-cell header" style="color:var(--accent-emerald);">Nuestro Intérprete</div>
+                                <div class="compare-cell header" style="color:var(--accent-rose);">Compilador Profesional</div>
+                                <div class="compare-cell"><p>Lexer → Tokens</p></div>
+                                <div class="compare-cell"><p>Lexer → Tokens ✓ <em>Igual</em></p></div>
+                                <div class="compare-cell"><p>Parser → AST</p></div>
+                                <div class="compare-cell"><p>Parser → AST ✓ <em>Igual</em></p></div>
+                                <div class="compare-cell"><p>Evaluador (recorre AST)</p></div>
+                                <div class="compare-cell"><p>Generador de código (emite bytecode o assembly)</p></div>
+                            </div>
+                        </div>
+
+                        <div class="card card-amber">
+                            <h3>📈 Caminos desde Aquí</h3>
+                            <p style="margin-top: 8px; font-size: 0.85rem; color: var(--text-secondary);">Dominar el tree-walking abre las puertas a:</p>
+                            <ul style="list-style:none;margin-top:8px;font-size:0.82rem;color:var(--text-secondary);display:flex;flex-direction:column;gap:4px;">
+                                <li>→ Compilar a <strong>bytecode</strong> propio y escribir una VM</li>
+                                <li>→ Compilar a <strong>LLVM IR</strong> para obtener rendimiento nativo</li>
+                                <li>→ Compilar a <strong>WebAssembly</strong> para ejecutar en navegadores</li>
+                                <li>→ Crear <strong>DSLs</strong> para problemas de dominio específico</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Git Workflow -->
+        <div class="slide" data-slide="6">
+            <div class="slide-content">
+                <div class="slide-label">Metodología</div>
+                <h2 class="slide-title">Flujo de Trabajo con <span class="gradient-cool">Git</span></h2>
+                <p class="slide-subtitle">
+                    Cada fase del intérprete se desarrolla en una rama independiente. Esto permite un progreso incremental y organizado.
+                </p>
+
+                <div class="two-col" style="margin-top: 28px;">
+                    <div class="two-col-left">
+                        <div class="branch-visual">
+                            <div class="branch-item">
+                                <div class="branch-dot" style="background: var(--accent-blue);"></div>
+                                <span class="branch-name" style="color: var(--accent-blue);">main</span>
+                                <span class="branch-desc">Rama principal estable ✅</span>
+                            </div>
+                            <div class="branch-item" style="margin-left: 24px;">
+                                <div class="branch-dot" style="background: var(--accent-purple);"></div>
+                                <span class="branch-name" style="color: var(--accent-purple);">parser</span>
+                                <span class="branch-desc">Fase actual → Análisis Sintáctico 🔨</span>
+                            </div>
+                            <div class="branch-item" style="margin-left: 24px; opacity: 0.5;">
+                                <div class="branch-dot" style="background: var(--accent-cyan);"></div>
+                                <span class="branch-name" style="color: var(--accent-cyan);">evaluator</span>
+                                <span class="branch-desc">Próxima fase — Evaluación</span>
+                            </div>
+                            <div class="branch-item" style="margin-left: 24px; opacity: 0.35;">
+                                <div class="branch-dot" style="background: var(--accent-emerald);"></div>
+                                <span class="branch-name" style="color: var(--accent-emerald);">features</span>
+                                <span class="branch-desc">Funcionalidades adicionales</span>
+                            </div>
+                        </div>
+
+                        <div class="card card-blue" style="margin-top: 16px;">
+                            <h3>🔄 Flujo por Sprint</h3>
+                            <p style="margin-top: 8px;">
+                                <strong>1.</strong> Crear rama desde main<br>
+                                <strong>2.</strong> Desarrollar la funcionalidad<br>
+                                <strong>3.</strong> Escribir y pasar los tests<br>
+                                <strong>4.</strong> Merge a main cuando esté completo
+                            </p>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="code-block">
+                            <span class="code-label">Terminal</span>
+<span class="code-comment"># Crear una nueva rama para el parser</span>
+<span class="code-function">$</span> git checkout -b parser
+
+<span class="code-comment"># Desarrollar la funcionalidad...</span>
+<span class="code-comment"># Hacer commits atómicos y descriptivos</span>
+<span class="code-function">$</span> git add .
+<span class="code-function">$</span> git commit -m <span class="code-string">"Implementar parseo de let"</span>
+
+<span class="code-comment"># Correr los tests antes de mergear</span>
+<span class="code-function">$</span> python -m pytest tests/
+
+<span class="code-comment"># Cuando la fase esté completa</span>
+<span class="code-function">$</span> git checkout main
+<span class="code-function">$</span> git merge parser
+                        </div>
+
+                        <div class="card card-purple">
+                            <h3>💡 Buenas Prácticas</h3>
+                            <p style="margin-top: 8px;">
+                                Cada commit debe ser atómico: un solo cambio lógico con un mensaje descriptivo. Los tests se ejecutan antes de cada merge.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 5: Phase 1 - Tokens -->
+        <div class="slide" data-slide="7">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-blue" style="background: rgba(59,130,246,0.15);">📋</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-blue);">Fase 1 — tokens.py</div>
+                        <h2>Definición de Tokens</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    Un <strong>token</strong> es la unidad mínima de significado del lenguaje. Es el "vocabulario" que el intérprete entiende.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="card card-blue">
+                            <h3>📦 Estructura del Token</h3>
+                            <div class="code-block" style="margin-top: 12px; background: rgba(0,0,0,0.3);">
+<span class="code-keyword">class</span> <span class="code-type">Token</span>(<span class="code-type">NamedTuple</span>):
+    <span class="code-identifier">token_type</span>: <span class="code-type">TokenType</span>
+    <span class="code-identifier">literal</span>: <span class="code-type">str</span>
+
+<span class="code-comment"># Ejemplo:</span>
+Token(<span class="code-type">TokenType.LET</span>, <span class="code-string">'let'</span>)
+Token(<span class="code-type">TokenType.INTEGER</span>, <span class="code-string">'42'</span>)
+                            </div>
+                        </div>
+
+                        <div class="tags-list">
+                            <span class="tag tag-blue">+ - * / % ^</span>
+                            <span class="tag tag-purple">== != < > <= >=</span>
+                            <span class="tag tag-cyan">and or !</span>
+                            <span class="tag tag-emerald">let function return</span>
+                            <span class="tag tag-amber">if elseif else</span>
+                            <span class="tag tag-rose">while for break continue</span>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card" style="padding: 0; overflow: hidden;">
+                            <table class="token-table">
+                                <thead>
+                                    <tr>
+                                        <th>Categoría</th>
+                                        <th>Tokens</th>
+                                        <th>Ejemplo</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td>PLUS, MINUS...</td>
+                                        <td>+, -, *, /</td>
+                                        <td style="color:var(--text-muted)">Aritméticos</td>
+                                    </tr>
+                                    <tr>
+                                        <td>EQ, DIF, LT...</td>
+                                        <td>==, !=, <, ></td>
+                                        <td style="color:var(--text-muted)">Comparación</td>
+                                    </tr>
+                                    <tr>
+                                        <td>INTEGER</td>
+                                        <td>42</td>
+                                        <td style="color:var(--text-muted)">Entero</td>
+                                    </tr>
+                                    <tr>
+                                        <td>FLOAT</td>
+                                        <td>3.14</td>
+                                        <td style="color:var(--text-muted)">Decimal</td>
+                                    </tr>
+                                    <tr>
+                                        <td>STRING</td>
+                                        <td>"hola"</td>
+                                        <td style="color:var(--text-muted)">Texto</td>
+                                    </tr>
+                                    <tr>
+                                        <td>IDENTIFIER</td>
+                                        <td>miVar</td>
+                                        <td style="color:var(--text-muted)">Nombre</td>
+                                    </tr>
+                                    <tr>
+                                        <td>FUNCTION</td>
+                                        <td>function</td>
+                                        <td style="color:var(--text-muted)">Keyword</td>
+                                    </tr>
+                                    <tr>
+                                        <td>EOF</td>
+                                        <td></td>
+                                        <td style="color:var(--text-muted)">Fin de archivo</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 6: Phase 2 - Lexer -->
+        <div class="slide" data-slide="8">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-purple" style="background: rgba(139,92,246,0.15);">🔍</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-purple);">Fase 2 — lexer.py</div>
+                        <h2>Analizador Léxico (Lexer)</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    El Lexer es el <strong>escáner</strong> que lee el código fuente carácter por carácter y agrupa los caracteres en tokens.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="code-block">
+                            <span class="code-label">Entrada (código fuente)</span>
+<span class="code-keyword">let</span> <span class="code-identifier">x</span> <span class="code-operator">=</span> <span class="code-number">10</span> <span class="code-operator">+</span> <span class="code-number">5</span><span class="code-punctuation">;</span>
+                        </div>
+
+                        <div class="code-block">
+                            <span class="code-label">Salida (tokens)</span>
+Token(<span class="code-type">LET</span>,       <span class="code-string">'let'</span>)
+Token(<span class="code-type">IDENTIFIER</span>, <span class="code-string">'x'</span>)
+Token(<span class="code-type">ASSIGN</span>,     <span class="code-string">'='</span>)
+Token(<span class="code-type">INTEGER</span>,    <span class="code-string">'10'</span>)
+Token(<span class="code-type">PLUS</span>,       <span class="code-string">'+'</span>)
+Token(<span class="code-type">INTEGER</span>,    <span class="code-string">'5'</span>)
+Token(<span class="code-type">SEMICOLON</span>,  <span class="code-string">';'</span>)
+Token(<span class="code-type">EOF</span>,        <span class="code-string">''</span>)
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="cards-grid" style="grid-template-columns: 1fr; gap: 12px;">
+                            <div class="card card-purple">
+                                <div class="card-number">01</div>
+                                <h3>🔤 Lectura carácter a carácter</h3>
+                                <p>Usa <code style="font-family:'JetBrains Mono';font-size:0.8rem;color:var(--accent-cyan);">_read_character()</code> para avanzar y <code style="font-family:'JetBrains Mono';font-size:0.8rem;color:var(--accent-cyan);">_peek_character()</code> para mirar adelante sin avanzar (look-ahead).</p>
+                            </div>
+                            <div class="card card-cyan">
+                                <div class="card-number">02</div>
+                                <h3>⚡ Reconocimiento con match-case</h3>
+                                <p>Usa la estructura <code style="font-family:'JetBrains Mono';font-size:0.8rem;color:var(--accent-purple);">match self._character</code> de Python 3.10+ para clasificar cada carácter.</p>
+                            </div>
+                            <div class="card card-emerald">
+                                <div class="card-number">03</div>
+                                <h3>🔑 Keywords vs Identifiers</h3>
+                                <p>La función <code style="font-family:'JetBrains Mono';font-size:0.8rem;color:var(--accent-amber);">lookup_token_type()</code> distingue entre palabras reservadas del lenguaje e identificadores del usuario.</p>
+                            </div>
+                            <div class="card card-blue">
+                                <div class="card-number">04</div>
+                                <h3>💬 Manejo de tokens complejos</h3>
+                                <p>Tokens de dos caracteres (<code style="font-family:'JetBrains Mono';font-size:0.8rem;">==</code>, <code style="font-family:'JetBrains Mono';font-size:0.8rem;">!=</code>, <code style="font-family:'JetBrains Mono';font-size:0.8rem;"><=</code>), strings entre comillas, números con decimales y comentarios con <code style="font-family:'JetBrains Mono';font-size:0.8rem;">//</code>.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 7: Phase 3 - Parser (Pratt) -->
+        <div class="slide" data-slide="9">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-cyan" style="background: rgba(6,182,212,0.15);">🌳</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-cyan);">Fase 3 — parser.py</div>
+                        <h2>Analizador Sintáctico (Pratt Parser)</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    El Parser consume tokens y construye un <strong>Árbol Sintáctico Abstracto (AST)</strong>. 
+                    Usamos un <em>Pratt Parser</em> para manejar las precedencias de operadores.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="card card-cyan">
+                            <h3>📊 Tabla de Precedencias</h3>
+                            <table class="token-table" style="margin-top: 10px;">
+                                <thead><tr><th>Nivel</th><th>Operadores</th><th>Precedencia</th></tr></thead>
+                                <tbody>
+                                    <tr><td>CALL</td><td>f(args)</td><td style="color:var(--accent-rose)">10 (mayor)</td></tr>
+                                    <tr><td>POWER</td><td>^</td><td style="color:var(--accent-amber)">9</td></tr>
+                                    <tr><td>PREFIX</td><td>-x, !x</td><td style="color:var(--accent-amber)">8</td></tr>
+                                    <tr><td>PRODUCT</td><td>* / %</td><td style="color:var(--accent-cyan)">7</td></tr>
+                                    <tr><td>SUM</td><td>+ -</td><td style="color:var(--accent-cyan)">6</td></tr>
+                                    <tr><td>COMPARE</td><td>&lt; &gt; &lt;= &gt;=</td><td style="color:var(--accent-purple)">5</td></tr>
+                                    <tr><td>EQUALS</td><td>== !=</td><td style="color:var(--accent-purple)">4</td></tr>
+                                    <tr><td>AND</td><td>and</td><td style="color:var(--accent-blue)">3</td></tr>
+                                    <tr><td>OR</td><td>or</td><td style="color:var(--accent-blue)">2</td></tr>
+                                    <tr><td>LOWEST</td><td>—</td><td style="color:var(--text-muted)">1 (menor)</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-purple">
+                            <h3>🧠 Conceptos Clave del Pratt Parser</h3>
+                            <div style="margin-top: 12px; display: flex; flex-direction: column; gap: 10px;">
+                                <div style="display:flex;gap:10px;align-items:flex-start;">
+                                    <span style="color:var(--accent-purple);font-family:'JetBrains Mono';font-weight:700;font-size:0.85rem;flex-shrink:0;">nud</span>
+                                    <span style="font-size:0.85rem;color:var(--text-secondary);">Null Denotation — parsea tokens al INICIO de una expresión (números, identificadores, paréntesis abierto)</span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;">
+                                    <span style="color:var(--accent-cyan);font-family:'JetBrains Mono';font-weight:700;font-size:0.85rem;flex-shrink:0;">led</span>
+                                    <span style="font-size:0.85rem;color:var(--text-secondary);">Left Denotation — parsea tokens en posición INFIJA (operadores binarios como +, *, ==)</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="code-block" style="margin-top: 12px;">
+                            <span class="code-label">Ejemplo: 1 + 2 * 3</span>
+<span class="code-comment">// El parser respeta las precedencias:</span>
+<span class="code-comment">// * tiene mayor prioridad que +</span>
+
+        InfixExpression
+        ┌─────┼─────┐
+       <span class="code-number">1</span>   <span class="code-operator">  +</span>   InfixExpression
+              ┌─────┼─────┐
+             <span class="code-number">2</span>    <span class="code-operator"> *</span>      <span class="code-number">3</span>
+
+<span class="code-comment">// Resultado: (1 + (2 * 3)) = 7</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 8: Phase 4 - AST -->
+        <div class="slide" data-slide="10">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-emerald" style="background: rgba(16,185,129,0.15);">🌲</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-emerald);">Fase 4 — ast.py</div>
+                        <h2>Árbol Sintáctico Abstracto (AST)</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    El AST es la representación intermedia del programa. Cada construcción del lenguaje es un nodo en el árbol.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="card card-emerald">
+                            <h3>📂 Sentencias (Statements)</h3>
+                            <p style="margin-bottom: 10px;">No producen un valor. Ejecutan una acción.</p>
+                            <ul class="hierarchy-list">
+                                <li><span class="hi-icon icon-emerald">P</span> <code>Program</code> — nodo raíz del programa</li>
+                                <li><span class="hi-icon icon-blue">L</span> <code>LetStatement</code> — let x = expr;</li>
+                                <li><span class="hi-icon icon-purple">R</span> <code>ReturnStatement</code> — return expr;</li>
+                                <li><span class="hi-icon icon-cyan">E</span> <code>ExpressionStatement</code> — expr;</li>
+                                <li><span class="hi-icon icon-amber">B</span> <code>BlockStatement</code> — { ... }</li>
+                                <li><span class="hi-icon icon-rose">W</span> <code>WhileStatement</code> — while (...) { }</li>
+                                <li><span class="hi-icon icon-indigo">F</span> <code>ForStatement</code> — for (...;...;...) { }</li>
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-blue">
+                            <h3>📐 Expresiones (Expressions)</h3>
+                            <p style="margin-bottom: 10px;">Producen un valor al evaluarse.</p>
+                            <ul class="hierarchy-list">
+                                <li><span class="hi-icon icon-blue">I</span> <code>Identifier</code> — nombre de variable</li>
+                                <li><span class="hi-icon icon-purple">N</span> <code>IntegerLiteral</code> / <code>FloatLiteral</code></li>
+                                <li><span class="hi-icon icon-amber">S</span> <code>StringLiteral</code> / <code>BooleanLiteral</code></li>
+                                <li><span class="hi-icon icon-rose">P</span> <code>PrefixExpression</code> — !x, -5</li>
+                                <li><span class="hi-icon icon-cyan">I</span> <code>InfixExpression</code> — a + b</li>
+                                <li><span class="hi-icon icon-emerald">C</span> <code>IfExpression</code> — if/elseif/else</li>
+                                <li><span class="hi-icon icon-indigo">F</span> <code>FunctionLiteral</code> / <code>CallExpression</code></li>
+                            </ul>
+                        </div>
+
+                        <div class="code-block" style="margin-top: 12px; font-size: 0.75rem;">
+                            <span class="code-label">AST Visual</span>
+<span class="code-comment">// let resultado = 10 + 5;</span>
+
+<span class="code-type">LetStatement</span>
+├── name: <span class="code-identifier">Identifier</span>(<span class="code-string">"resultado"</span>)
+└── value: <span class="code-type">InfixExpression</span>
+    ├── left: <span class="code-number">IntegerLiteral(10)</span>
+    ├── operator: <span class="code-operator">"+"</span>
+    └── right: <span class="code-number">IntegerLiteral(5)</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 9: Phase 5 - Object System -->
+        <!-- SLIDE 11: What is Tree-Walking? (Visual) -->
+        <div class="slide" data-slide="11">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-rose" style="background: rgba(244,63,94,0.15);">🌳</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-rose);">Evaluador — Parte 1</div>
+                        <h2>¿Qué significa "Tree-Walking"?</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    "Caminar el árbol" significa <strong>visitar cada nodo del AST</strong> desde la raíz hasta las hojas, y <strong>ejecutar la acción</strong> de cada nodo. Es como leer un árbol genealógico de arriba a abajo.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="card card-blue" style="padding: 16px;">
+                            <h3 style="margin-bottom: 10px;">📝 Código fuente:</h3>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.85rem; padding: 12px 16px;">
+<span class="code-keyword">let</span> <span class="code-identifier">x</span> <span class="code-operator">=</span> <span class="code-number">3</span> <span class="code-operator">+</span> <span class="code-number">5</span> <span class="code-operator">*</span> <span class="code-number">2</span><span class="code-punctuation">;</span>
+                            </div>
+                        </div>
+
+                        <div class="card card-purple">
+                            <h3 style="margin-bottom: 10px;">🌲 AST generado por el Parser:</h3>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.75rem; padding: 14px 18px;">
+<span class="code-type">LetStatement</span> <span class="code-comment">← ❶ empezamos aquí</span>
+├── name: <span class="code-identifier">"x"</span>
+└── value: <span class="code-type">InfixExpr</span> <span class="code-comment">← ❷ evaluar valor</span>
+    ├── left: <span class="code-number">IntegerLiteral(3)</span> <span class="code-comment">← ❸</span>
+    ├── op: <span class="code-operator">"+"</span>
+    └── right: <span class="code-type">InfixExpr</span> <span class="code-comment">← ❹</span>
+        ├── left: <span class="code-number">IntegerLiteral(5)</span> <span class="code-comment">← ❺</span>
+        ├── op: <span class="code-operator">"*"</span>
+        └── right: <span class="code-number">IntegerLiteral(2)</span> <span class="code-comment">← ❻</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald" style="border-color: rgba(16,185,129,0.25);">
+                            <h3 style="margin-bottom: 12px;">⚡ Paso a paso del Evaluador:</h3>
+                            <div style="display:flex;flex-direction:column;gap:8px;font-size:0.82rem;">
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:rgba(16,185,129,0.06);border-radius:8px;border-left:3px solid var(--accent-emerald);">
+                                    <span style="color:var(--accent-emerald);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❶</span>
+                                    <span style="color:var(--text-secondary);">Veo un <strong style="color:var(--text-primary);">LetStatement</strong>. Necesito evaluar el <em>valor</em> del lado derecho y guardarlo.</span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:rgba(139,92,246,0.06);border-radius:8px;border-left:3px solid var(--accent-purple);">
+                                    <span style="color:var(--accent-purple);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❷</span>
+                                    <span style="color:var(--text-secondary);">El valor es <strong style="color:var(--text-primary);">InfixExpr(+)</strong>. Necesito evaluar <em>izquierda</em> y <em>derecha</em> primero.</span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:rgba(59,130,246,0.06);border-radius:8px;border-left:3px solid var(--accent-blue);">
+                                    <span style="color:var(--accent-blue);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❸</span>
+                                    <span style="color:var(--text-secondary);">Izquierda es <strong style="color:var(--text-primary);">IntegerLiteral(3)</strong> → retorno <code style="font-family:'JetBrains Mono';font-size:0.78rem;color:var(--accent-cyan);">Integer(3)</code></span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:rgba(245,158,11,0.06);border-radius:8px;border-left:3px solid var(--accent-amber);">
+                                    <span style="color:var(--accent-amber);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❹❺❻</span>
+                                    <span style="color:var(--text-secondary);">Derecha es <strong style="color:var(--text-primary);">InfixExpr(*)</strong>: evalúo 5 y 2 → <code style="font-family:'JetBrains Mono';font-size:0.78rem;color:var(--accent-cyan);">Integer(10)</code></span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:8px 12px;background:rgba(139,92,246,0.06);border-radius:8px;border-left:3px solid var(--accent-purple);">
+                                    <span style="color:var(--accent-purple);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❷✓</span>
+                                    <span style="color:var(--text-secondary);">Ahora sumo: <code style="font-family:'JetBrains Mono';font-size:0.78rem;">3 + 10</code> → <code style="font-family:'JetBrains Mono';font-size:0.78rem;color:var(--accent-cyan);">Integer(13)</code></span>
+                                </div>
+                                <div style="display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:rgba(16,185,129,0.1);border-radius:8px;border-left:3px solid var(--accent-emerald);border:1px solid rgba(16,185,129,0.2);">
+                                    <span style="color:var(--accent-emerald);font-weight:800;font-family:'JetBrains Mono';flex-shrink:0;">❶✓</span>
+                                    <span style="color:var(--text-primary);"><strong>Guardo en Environment:</strong> <code style="font-family:'JetBrains Mono';font-size:0.78rem;">x → Integer(13)</code> ✅</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 12: Environment / Values -->
+        <div class="slide" data-slide="12">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-amber" style="background: rgba(245,158,11,0.15);">📦</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-amber);">Evaluador — Parte 2</div>
+                        <h2>El Environment: ¿Dónde se guardan los valores?</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    El <strong>Environment</strong> es simplemente un <strong>diccionario</strong> (tabla clave→valor) que guarda las variables. Pero tiene un superpoder: puede <strong>encadenarse</strong> con un entorno padre.
+                </p>
+
+                <div class="two-col" style="margin-top: 20px;">
+                    <div class="two-col-left">
+                        <div class="card card-amber" style="border-color: rgba(245,158,11,0.2);">
+                            <h3>📋 ¿Qué es un Environment?</h3>
+                            <p style="margin: 10px 0;">Es un objeto con solo 2 atributos:</p>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.78rem; padding: 14px 18px;">
+<span class="code-keyword">class</span> <span class="code-type">Environment</span>:
+    <span class="code-identifier">_store</span>: Dict[str, Object]
+    <span class="code-comment"># {"x": Integer(10), "nombre": String("Laura")}</span>
+
+    <span class="code-identifier">_outer</span>: Optional[Environment]
+    <span class="code-comment"># Referencia al entorno PADRE (None si es global)</span>
+                            </div>
+                        </div>
+
+                        <div class="card card-blue">
+                            <h3>🔍 ¿Cómo busca una variable? → <code style="font-family:'JetBrains Mono';font-size:0.82rem;">env.get("x")</code></h3>
+                            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;font-size:0.82rem;">
+                                <div style="padding:6px 12px;background:rgba(59,130,246,0.08);border-radius:6px;color:var(--text-secondary);">
+                                    <strong style="color:var(--accent-blue);">1.</strong> Busca <code style="font-family:'JetBrains Mono';font-size:0.78rem;">"x"</code> en su propio <code style="font-family:'JetBrains Mono';font-size:0.78rem;">_store</code>
+                                </div>
+                                <div style="padding:6px 12px;background:rgba(59,130,246,0.08);border-radius:6px;color:var(--text-secondary);">
+                                    <strong style="color:var(--accent-blue);">2.</strong> Si NO la encuentra → pregunta al <code style="font-family:'JetBrains Mono';font-size:0.78rem;">_outer</code> (entorno padre)
+                                </div>
+                                <div style="padding:6px 12px;background:rgba(59,130,246,0.08);border-radius:6px;color:var(--text-secondary);">
+                                    <strong style="color:var(--accent-blue);">3.</strong> El padre busca en SU <code style="font-family:'JetBrains Mono';font-size:0.78rem;">_store</code>, y si no, en SU <code style="font-family:'JetBrains Mono';font-size:0.78rem;">_outer</code>...
+                                </div>
+                                <div style="padding:6px 12px;background:rgba(244,63,94,0.08);border-radius:6px;color:var(--text-secondary);">
+                                    <strong style="color:var(--accent-rose);">4.</strong> Si llega al global y no está → <code style="font-family:'JetBrains Mono';font-size:0.78rem;color:var(--accent-rose);">Error: "variable no definida"</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald" style="border-color: rgba(16,185,129,0.2);">
+                            <h3>🎯 Ejemplo visual con código:</h3>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.78rem; padding: 10px 14px; margin: 8px 0;">
+<span class="code-keyword">let</span> <span class="code-identifier">x</span> <span class="code-operator">=</span> <span class="code-number">10</span>;
+<span class="code-keyword">let</span> <span class="code-identifier">y</span> <span class="code-operator">=</span> <span class="code-number">20</span>;
+<span class="code-keyword">let</span> <span class="code-identifier">suma</span> <span class="code-operator">=</span> <span class="code-keyword">function</span>(a, b) {
+    <span class="code-keyword">return</span> a <span class="code-operator">+</span> b;
+};
+<span class="code-builtin">print</span>(suma(x, y)); <span class="code-comment">// 30</span>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.78rem;">
+                                <div style="padding:10px 14px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.15);border-radius:8px;margin-bottom:6px;">
+                                    <strong style="color:var(--accent-emerald);">Entorno Global</strong> <span style="color:var(--text-muted);">(_outer: null)</span>
+                                    <div style="font-family:'JetBrains Mono';margin-top:6px;color:var(--text-secondary);font-size:0.75rem;">
+                                        <div>"x"&nbsp;&nbsp;&nbsp;→ Integer(10)</div>
+                                        <div>"y"&nbsp;&nbsp;&nbsp;→ Integer(20)</div>
+                                        <div>"suma" → Function(params:[a,b], body:..., env:👆)</div>
+                                    </div>
+                                </div>
+                                <div style="text-align:center;color:var(--text-muted);font-size:0.7rem;margin:4px 0;">↑ _outer apunta aquí</div>
+                                <div style="padding:10px 14px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.15);border-radius:8px;margin-left:20px;">
+                                    <strong style="color:var(--accent-purple);">Entorno de suma(10, 20)</strong>
+                                    <div style="font-family:'JetBrains Mono';margin-top:6px;color:var(--text-secondary);font-size:0.75rem;">
+                                        <div>"a" → Integer(10) <span style="color:var(--text-muted);">← parámetro</span></div>
+                                        <div>"b" → Integer(20) <span style="color:var(--text-muted);">← parámetro</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card card-purple" style="margin-top: 10px;">
+                            <h3>💡 Punto clave</h3>
+                            <p>Cada función tiene su <strong>propio entorno local</strong>. Los parámetros son simplemente variables que se agregan a ese entorno. Cuando la función termina, su entorno se <strong>descarta</strong>.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 13: Function Calls Deep Dive -->
+        <div class="slide" data-slide="13">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-indigo" style="background: rgba(99,102,241,0.15);">📞</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-indigo);">Evaluador — Parte 3</div>
+                        <h2>¿Cómo funciona una llamada a función?</h2>
+                    </div>
+                </div>
+                <p class="slide-subtitle">
+                    Cuando el evaluador encuentra <code style="font-family:'JetBrains Mono';font-size:1rem;">suma(7, 8)</code>, ejecuta 5 pasos exactos. Veamos cada uno.
+                </p>
+
+                <div class="two-col" style="margin-top: 16px;">
+                    <div class="two-col-left">
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <div class="card card-blue" style="padding:14px 18px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(59,130,246,0.2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-blue);font-family:'JetBrains Mono';flex-shrink:0;">1</div>
+                                    <div>
+                                        <h3 style="font-size:0.88rem;margin-bottom:2px;">Evaluar la expresión función</h3>
+                                        <p style="font-size:0.78rem;">Busca <code style="font-family:'JetBrains Mono';font-size:0.75rem;">"suma"</code> en el Environment → obtiene el objeto <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Function</code></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-purple" style="padding:14px 18px;">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(139,92,246,0.2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-purple);font-family:'JetBrains Mono';flex-shrink:0;">2</div>
+                                    <div>
+                                        <h3 style="font-size:0.88rem;margin-bottom:2px;">Evaluar cada argumento</h3>
+                                        <p style="font-size:0.78rem;">Evalúa <code style="font-family:'JetBrains Mono';font-size:0.75rem;">7</code> → <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Integer(7)</code>, evalúa <code style="font-family:'JetBrains Mono';font-size:0.75rem;">8</code> → <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Integer(8)</code></p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-cyan" style="padding:14px 18px;border-color:rgba(6,182,212,0.25);">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(6,182,212,0.2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-cyan);font-family:'JetBrains Mono';flex-shrink:0;">3</div>
+                                    <div>
+                                        <h3 style="font-size:0.88rem;margin-bottom:2px;">Crear nuevo Environment</h3>
+                                        <p style="font-size:0.78rem;">Crea un entorno <strong>hijo</strong> del entorno donde la función fue <em>definida</em> (closure). El <code style="font-family:'JetBrains Mono';font-size:0.75rem;">_outer</code> apunta al entorno capturado.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-emerald" style="padding:14px 18px;border-color:rgba(16,185,129,0.25);">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(16,185,129,0.2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-emerald);font-family:'JetBrains Mono';flex-shrink:0;">4</div>
+                                    <div>
+                                        <h3 style="font-size:0.88rem;margin-bottom:2px;">Enlazar parámetros → argumentos</h3>
+                                        <p style="font-size:0.78rem;"><code style="font-family:'JetBrains Mono';font-size:0.75rem;">a</code> ← <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Integer(7)</code>, <code style="font-family:'JetBrains Mono';font-size:0.75rem;">b</code> ← <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Integer(8)</code>. Cada parámetro se guarda en el nuevo Environment.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card card-rose" style="padding:14px 18px;border-color:rgba(244,63,94,0.25);">
+                                <div style="display:flex;align-items:center;gap:10px;">
+                                    <div style="width:32px;height:32px;border-radius:50%;background:rgba(244,63,94,0.2);display:flex;align-items:center;justify-content:center;font-weight:800;color:var(--accent-rose);font-family:'JetBrains Mono';flex-shrink:0;">5</div>
+                                    <div>
+                                        <h3 style="font-size:0.88rem;margin-bottom:2px;">Evaluar el cuerpo de la función</h3>
+                                        <p style="font-size:0.78rem;">Ejecuta <code style="font-family:'JetBrains Mono';font-size:0.75rem;">return a + b;</code> en el nuevo Environment → <code style="font-family:'JetBrains Mono';font-size:0.75rem;color:var(--accent-cyan);">Integer(15)</code></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-amber" style="border-color: rgba(245,158,11,0.2);">
+                            <h3>🧠 El código del evaluador:</h3>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.72rem; padding: 12px 14px; margin-top: 8px; line-height: 1.7;">
+<span class="code-keyword">def</span> <span class="code-function">_evaluate_call_expression</span>(node, env):
+    <span class="code-comment"># ❶ Evaluar la función</span>
+    function = evaluate(node.function, env)
+
+    <span class="code-comment"># ❷ Evaluar los argumentos</span>
+    args = []
+    <span class="code-keyword">for</span> arg <span class="code-keyword">in</span> node.arguments:
+        args.append(evaluate(arg, env))
+
+    <span class="code-comment"># ❸ Crear entorno hijo del CLOSURE</span>
+    new_env = Environment(outer=function.env)
+
+    <span class="code-comment"># ❹ Enlazar parámetros con argumentos</span>
+    <span class="code-keyword">for</span> param, arg <span class="code-keyword">in</span> zip(
+        function.parameters, args
+    ):
+        new_env.set(param.value, arg)
+
+    <span class="code-comment"># ❺ Evaluar el cuerpo</span>
+    result = evaluate(function.body, new_env)
+
+    <span class="code-comment"># Si retornó algo, desempaquetarlo</span>
+    <span class="code-keyword">if</span> isinstance(result, ReturnValue):
+        <span class="code-keyword">return</span> result.value
+    <span class="code-keyword">return</span> result
+                            </div>
+                        </div>
+                        <div class="card" style="margin-top: 10px; border-color: rgba(99,102,241,0.2); background: rgba(99,102,241,0.04);">
+                            <h3>💡 ¿Por qué <em>closure</em>?</h3>
+                            <p style="margin-top: 6px;">El paso ❸ es crucial: el nuevo entorno <strong>NO</strong> es hijo del entorno donde se <em>llama</em> la función, sino del entorno donde se <em>definió</em>. Esto es lo que permite que las funciones "recuerden" las variables de su contexto original.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 14: Recursion Deep Dive -->
+        <div class="slide" data-slide="14">
+            <div class="slide-content">
+                <div class="phase-header">
+                    <div class="phase-badge icon-purple" style="background: rgba(139,92,246,0.15);">🔄</div>
+                    <div class="phase-info">
+                        <div class="phase-tag" style="color: var(--accent-purple);">Evaluador — Parte 4</div>
+                        <h2>Recursión: factorial(3) paso a paso</h2>
+                    </div>
+                </div>
+
+                <div class="two-col" style="margin-top: 12px;">
+                    <div class="two-col-left">
+                        <div class="card card-purple" style="padding: 14px 18px;">
+                            <h3 style="font-size:0.88rem;">📝 La función:</h3>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.78rem; padding: 10px 14px; margin-top: 6px;">
+<span class="code-keyword">let</span> <span class="code-identifier">factorial</span> <span class="code-operator">=</span> <span class="code-keyword">function</span>(n) {
+    <span class="code-keyword">if</span> (n <span class="code-operator">==</span> <span class="code-number">0</span>) { <span class="code-keyword">return</span> <span class="code-number">1</span>; }
+    <span class="code-keyword">return</span> n <span class="code-operator">*</span> factorial(n <span class="code-operator">-</span> <span class="code-number">1</span>);
+};
+<span class="code-builtin">print</span>(factorial(<span class="code-number">3</span>)); <span class="code-comment">// 6</span>
+                            </div>
+                        </div>
+
+                        <div class="card" style="border-color: rgba(139,92,246,0.15); background: rgba(139,92,246,0.03);">
+                            <h3 style="font-size:0.88rem;">📚 Pila de Environments (Call Stack):</h3>
+                            <div style="margin-top:10px;font-size:0.74rem;font-family:'JetBrains Mono';display:flex;flex-direction:column;gap:4px;">
+                                <div style="padding:8px 12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.12);border-radius:6px;">
+                                    <span style="color:var(--accent-emerald);font-weight:600;">🌍 Global</span>
+                                    <span style="color:var(--text-muted);"> → factorial: Function, ...</span>
+                                </div>
+                                <div style="text-align:center;color:var(--text-muted);font-size:0.65rem;">↑ outer</div>
+                                <div style="padding:8px 12px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.12);border-radius:6px;margin-left:16px;">
+                                    <span style="color:var(--accent-blue);font-weight:600;">📞 factorial(3)</span>
+                                    <span style="color:var(--text-muted);"> → n: Integer(3)</span>
+                                </div>
+                                <div style="text-align:center;color:var(--text-muted);font-size:0.65rem;margin-left:16px;">↑ outer</div>
+                                <div style="padding:8px 12px;background:rgba(139,92,246,0.08);border:1px solid rgba(139,92,246,0.12);border-radius:6px;margin-left:32px;">
+                                    <span style="color:var(--accent-purple);font-weight:600;">📞 factorial(2)</span>
+                                    <span style="color:var(--text-muted);"> → n: Integer(2)</span>
+                                </div>
+                                <div style="text-align:center;color:var(--text-muted);font-size:0.65rem;margin-left:32px;">↑ outer</div>
+                                <div style="padding:8px 12px;background:rgba(244,63,94,0.08);border:1px solid rgba(244,63,94,0.12);border-radius:6px;margin-left:48px;">
+                                    <span style="color:var(--accent-rose);font-weight:600;">📞 factorial(1)</span>
+                                    <span style="color:var(--text-muted);"> → n: Integer(1)</span>
+                                </div>
+                                <div style="text-align:center;color:var(--text-muted);font-size:0.65rem;margin-left:48px;">↑ outer</div>
+                                <div style="padding:8px 12px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.2);border-radius:6px;margin-left:64px;">
+                                    <span style="color:var(--accent-amber);font-weight:600;">📞 factorial(0)</span>
+                                    <span style="color:var(--text-muted);"> → n: Integer(0)</span>
+                                    <span style="color:var(--accent-emerald);"> ← CASO BASE!</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald" style="border-color: rgba(16,185,129,0.2);">
+                            <h3 style="font-size:0.88rem;">⚡ Ejecución (se "apilan" y luego "desapilan"):</h3>
+                            <div style="margin-top:10px;display:flex;flex-direction:column;gap:6px;font-size:0.78rem;">
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-blue);background:rgba(59,130,246,0.05);border-radius:0 6px 6px 0;color:var(--text-secondary);">
+                                    <strong style="color:var(--accent-blue);">→ factorial(3):</strong> n≠0, necesito <code style="font-family:'JetBrains Mono';font-size:0.72rem;">3 * factorial(2)</code>... espero
+                                </div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-purple);background:rgba(139,92,246,0.05);border-radius:0 6px 6px 0;color:var(--text-secondary);margin-left:12px;">
+                                    <strong style="color:var(--accent-purple);">→ factorial(2):</strong> n≠0, necesito <code style="font-family:'JetBrains Mono';font-size:0.72rem;">2 * factorial(1)</code>... espero
+                                </div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-rose);background:rgba(244,63,94,0.05);border-radius:0 6px 6px 0;color:var(--text-secondary);margin-left:24px;">
+                                    <strong style="color:var(--accent-rose);">→ factorial(1):</strong> n≠0, necesito <code style="font-family:'JetBrains Mono';font-size:0.72rem;">1 * factorial(0)</code>... espero
+                                </div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-amber);background:rgba(245,158,11,0.1);border-radius:0 6px 6px 0;color:var(--text-primary);margin-left:36px;border:1px solid rgba(245,158,11,0.15);">
+                                    <strong style="color:var(--accent-amber);">→ factorial(0):</strong> n==0 → <code style="font-family:'JetBrains Mono';font-size:0.72rem;color:var(--accent-emerald);">return 1</code> ✅ ¡CASO BASE!
+                                </div>
+                                <div style="text-align:center;color:var(--accent-emerald);font-weight:600;font-size:0.72rem;margin:4px 0;">── ahora los resultados "bajan" (desapilan) ──</div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-rose);background:rgba(244,63,94,0.05);border-radius:0 6px 6px 0;color:var(--text-secondary);margin-left:24px;">
+                                    <strong style="color:var(--accent-rose);">← factorial(1):</strong> <code style="font-family:'JetBrains Mono';font-size:0.72rem;">1 * 1</code> = <code style="font-family:'JetBrains Mono';font-size:0.72rem;color:var(--accent-cyan);">Integer(1)</code>
+                                </div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-purple);background:rgba(139,92,246,0.05);border-radius:0 6px 6px 0;color:var(--text-secondary);margin-left:12px;">
+                                    <strong style="color:var(--accent-purple);">← factorial(2):</strong> <code style="font-family:'JetBrains Mono';font-size:0.72rem;">2 * 1</code> = <code style="font-family:'JetBrains Mono';font-size:0.72rem;color:var(--accent-cyan);">Integer(2)</code>
+                                </div>
+                                <div style="padding:7px 12px;border-left:3px solid var(--accent-blue);background:rgba(59,130,246,0.08);border-radius:0 6px 6px 0;color:var(--text-primary);border:1px solid rgba(59,130,246,0.15);">
+                                    <strong style="color:var(--accent-blue);">← factorial(3):</strong> <code style="font-family:'JetBrains Mono';font-size:0.72rem;">3 * 2</code> = <code style="font-family:'JetBrains Mono';font-size:0.72rem;color:var(--accent-emerald);font-weight:700;">Integer(6)</code> 🎉
+                                </div>
+                            </div>
+                        </div>
+                        <div class="card card-amber" style="margin-top: 10px;">
+                            <h3>🔑 ¿Por qué funciona?</h3>
+                            <p style="margin-top: 6px; font-size: 0.82rem; color: var(--text-secondary);">
+                                Cada llamada crea <strong>su propio Environment</strong> con su propia <code style="font-family:'JetBrains Mono';font-size:0.78rem;">n</code>. Aunque todas usan el mismo nombre <code style="font-family:'JetBrains Mono';font-size:0.78rem;">"n"</code>, son variables <strong>diferentes</strong> en entornos diferentes. Cuando factorial(0) retorna, su entorno se destruye, y volvemos al entorno de factorial(1), donde <code style="font-family:'JetBrains Mono';font-size:0.78rem;">n</code> sigue siendo 1.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 15: Language Demo -->
+        <div class="slide" data-slide="15">
+            <div class="slide-content">
+                <div class="slide-label">Demostración</div>
+                <h2 class="slide-title">El Lenguaje <span class="gradient-deep">LauraSeFue</span> en Acción</h2>
+                <p class="slide-subtitle" style="margin-bottom: 20px;">
+                    Ejemplo completo del lenguaje mostrando variables, funciones, recursión y control de flujo.
+                </p>
+
+                <div class="two-col">
+                    <div class="two-col-left">
+                        <div class="code-block">
+                            <span class="code-label">ejemplo.lf</span>
+<span class="code-comment">// Variables y aritmética</span>
+<span class="code-keyword">let</span> <span class="code-identifier">x</span> <span class="code-operator">=</span> <span class="code-number">10</span>;
+<span class="code-keyword">let</span> <span class="code-identifier">nombre</span> <span class="code-operator">=</span> <span class="code-string">"Laura"</span>;
+<span class="code-builtin">print</span>(<span class="code-string">"Hola, "</span> <span class="code-operator">+</span> nombre);
+
+<span class="code-comment">// Condicionales</span>
+<span class="code-keyword">if</span> (x <span class="code-operator">></span> <span class="code-number">5</span>) {
+    <span class="code-builtin">print</span>(<span class="code-string">"es mayor"</span>);
+} <span class="code-keyword">elseif</span> (x <span class="code-operator">==</span> <span class="code-number">5</span>) {
+    <span class="code-builtin">print</span>(<span class="code-string">"es cinco"</span>);
+} <span class="code-keyword">else</span> {
+    <span class="code-builtin">print</span>(<span class="code-string">"es menor"</span>);
+}
+
+<span class="code-comment">// Funciones recursivas</span>
+<span class="code-keyword">let</span> <span class="code-identifier">factorial</span> <span class="code-operator">=</span> <span class="code-keyword">function</span>(n) {
+    <span class="code-keyword">if</span> (n <span class="code-operator">==</span> <span class="code-number">0</span>) { <span class="code-keyword">return</span> <span class="code-number">1</span>; }
+    <span class="code-keyword">return</span> n <span class="code-operator">*</span> factorial(n <span class="code-operator">-</span> <span class="code-number">1</span>);
+};
+<span class="code-builtin">print</span>(factorial(<span class="code-number">5</span>)); <span class="code-comment">// 120</span>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="code-block">
+                            <span class="code-label">Más funcionalidades</span>
+<span class="code-comment">// Bucle FOR</span>
+<span class="code-keyword">for</span> (<span class="code-keyword">let</span> i <span class="code-operator">=</span> <span class="code-number">1</span>; i <span class="code-operator"><=</span> <span class="code-number">5</span>; <span class="code-keyword">let</span> i <span class="code-operator">=</span> i <span class="code-operator">+</span> <span class="code-number">1</span>) {
+    <span class="code-builtin">print</span>(i <span class="code-operator">*</span> i);  <span class="code-comment">// 1, 4, 9, 16, 25</span>
+}
+
+<span class="code-comment">// Bucle WHILE con break</span>
+<span class="code-keyword">let</span> <span class="code-identifier">n</span> <span class="code-operator">=</span> <span class="code-number">0</span>;
+<span class="code-keyword">while</span> (<span class="code-keyword">true</span>) {
+    <span class="code-keyword">let</span> n <span class="code-operator">=</span> n <span class="code-operator">+</span> <span class="code-number">1</span>;
+    <span class="code-keyword">if</span> (n <span class="code-operator">==</span> <span class="code-number">4</span>) { <span class="code-keyword">break</span>; }
+    <span class="code-builtin">print</span>(n);  <span class="code-comment">// 1, 2, 3</span>
+}
+
+<span class="code-comment">// Closures</span>
+<span class="code-keyword">let</span> <span class="code-identifier">hacer_contador</span> <span class="code-operator">=</span> <span class="code-keyword">function</span>(inicio) {
+    <span class="code-keyword">let</span> <span class="code-identifier">fn</span> <span class="code-operator">=</span> <span class="code-keyword">function</span>() {
+        <span class="code-keyword">return</span> inicio;
+    };
+    <span class="code-keyword">return</span> fn;
+};
+<span class="code-keyword">let</span> <span class="code-identifier">c</span> <span class="code-operator">=</span> hacer_contador(<span class="code-number">10</span>);
+<span class="code-builtin">print</span>(c());  <span class="code-comment">// 10</span>
+                        </div>
+
+                        <div class="code-block" style="margin-top: 12px;">
+                            <span class="code-label">Ejecución</span>
+<span class="code-function">$</span> python3 main.py ejemplo.lf
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 16: Roadmap & Testing -->
+        <div class="slide" data-slide="16">
+            <div class="slide-content">
+                <div class="slide-label">Plan de Desarrollo</div>
+                <h2 class="slide-title">Cronograma y <span class="gradient-warm">Evaluación</span></h2>
+                <p class="slide-subtitle" style="margin-bottom: 24px;">
+                    El proyecto se desarrolla en fases incrementales. Cada fase tiene criterios claros de aceptación y tests automatizados.
+                </p>
+
+                <div class="two-col">
+                    <div class="two-col-left">
+                        <div class="cards-grid" style="grid-template-columns: 1fr; gap: 12px;">
+                            <div class="card card-blue">
+                                <div class="card-number">Sprint 1</div>
+                                <h3>📋 Tokens + Lexer</h3>
+                                <p>Definir todos los tipos de tokens del lenguaje. Implementar el scanner que lee carácter por carácter y produce la secuencia de tokens.</p>
+                                <div class="tags-list" style="margin-top: 10px;">
+                                    <span class="tag tag-emerald">✅ Completado</span>
+                                    <span class="tag">tokens.py</span>
+                                    <span class="tag">lexer.py</span>
+                                </div>
+                            </div>
+                            <div class="card card-purple" style="border-color: rgba(139,92,246,0.3);">
+                                <div class="card-number">Sprint 2</div>
+                                <h3>🌳 AST + Parser</h3>
+                                <p>Definir los nodos del AST. Implementar el Pratt Parser con precedencia de operadores, parseo de sentencias y expresiones.</p>
+                                <div class="tags-list" style="margin-top: 10px;">
+                                    <span class="tag tag-amber">🔨 En progreso</span>
+                                    <span class="tag">ast.py</span>
+                                    <span class="tag">parser.py</span>
+                                </div>
+                            </div>
+                            <div class="card card-cyan" style="opacity: 0.7;">
+                                <div class="card-number">Sprint 3</div>
+                                <h3>⚡ Object System + Evaluador</h3>
+                                <p>Implementar el sistema de tipos en runtime y el evaluador tree-walking para ejecutar programas completos.</p>
+                                <div class="tags-list" style="margin-top: 10px;">
+                                    <span class="tag">Próximo</span>
+                                    <span class="tag">object_system.py</span>
+                                    <span class="tag">evaluator.py</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="two-col-right">
+                        <div class="card card-emerald">
+                            <h3>🧪 Testing con Pytest</h3>
+                            <p style="margin-bottom: 12px;">Cada módulo tiene su archivo de tests. Se recomienda TDD (Test-Driven Development).</p>
+                            <div class="code-block" style="background: rgba(0,0,0,0.3); font-size: 0.75rem;">
+<span class="code-comment"># Ejecutar todos los tests</span>
+<span class="code-function">$</span> python -m pytest tests/ -v
+
+<span class="code-comment"># test_lexer.py  — ¿Tokeniza bien?</span>
+<span class="code-comment"># test_parser.py — ¿Construye el AST?</span>
+<span class="code-comment"># test_evaluador.py — ¿Ejecuta bien?</span>
+
+<span class="code-function">$</span> python -m pytest tests/test_lexer.py
+<span class="code-type">========= 45 passed =========</span> ✅
+                            </div>
+                        </div>
+
+                        <div class="card card-rose" style="margin-top: 12px;">
+                            <h3>📌 Criterios de Evaluación</h3>
+                            <ul style="list-style: none; margin-top: 10px; font-size: 0.85rem; color: var(--text-secondary);">
+                                <li style="padding: 4px 0;">✅ Código limpio y bien documentado</li>
+                                <li style="padding: 4px 0;">✅ Uso correcto de Git (ramas, commits)</li>
+                                <li style="padding: 4px 0;">✅ Tests automatizados pasando</li>
+                                <li style="padding: 4px 0;">✅ Ejecución correcta de ejemplo.lf</li>
+                                <li style="padding: 4px 0;">✅ Comprensión teórica de cada fase</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SLIDE 17: Final / Thank You -->
+        <div class="slide" data-slide="17">
+            <div class="slide-content" style="text-align: center;">
+                <div style="margin-bottom: 40px;">
+                    <div style="font-size: 4rem; margin-bottom: 16px;">🚀</div>
+                    <h1 class="slide-title">
+                        ¡<span class="gradient-text">Manos</span> a la Obra!
+                    </h1>
+                    <p class="slide-subtitle" style="margin: 0 auto 36px; max-width: 600px;">
+                        Cada línea de código que escribamos es un paso más para entender
+                        cómo funcionan los lenguajes de programación por dentro.
+                    </p>
+                </div>
+
+                <div class="cards-grid cards-grid-3" style="max-width: 800px; margin: 0 auto;">
+                    <div class="card card-blue" style="text-align: center;">
+                        <div style="font-size: 1.8rem; margin-bottom: 10px;">📖</div>
+                        <h3>Documentación</h3>
+                        <p>Cada archivo del proyecto está exhaustivamente comentado en español</p>
+                    </div>
+                    <div class="card card-purple" style="text-align: center;">
+                        <div style="font-size: 1.8rem; margin-bottom: 10px;">🧪</div>
+                        <h3>Tests</h3>
+                        <p>Pruebas automatizadas con Pytest para validar cada componente</p>
+                    </div>
+                    <div class="card card-cyan" style="text-align: center;">
+                        <div style="font-size: 1.8rem; margin-bottom: 10px;">💬</div>
+                        <h3>Preguntas</h3>
+                        <p>No duden en preguntar. Cada concepto se explica paso a paso</p>
+                    </div>
+                </div>
+
+                <div style="margin-top: 40px; color: var(--text-muted); font-size: 0.85rem;">
+                    <p><strong style="color: var(--text-secondary);">Compiladores 2026</strong> · Prof. Sebastián Zapata</p>
+                    <p style="margin-top: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem;">
+                        python3 main.py mi_programa.lf
+                    </p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================================================================
+         JAVASCRIPT
+         ================================================================ -->
+    <script>
+        // State
+        let currentSlide = 0;
+        const totalSlides = document.querySelectorAll('.slide').length;
+        const slides = document.querySelectorAll('.slide');
+
+        // Initialize sidebar dots
+        function initSidebar() {
+            const sidebar = document.getElementById('sidebarNav');
+            for (let i = 0; i < totalSlides; i++) {
+                const dot = document.createElement('button');
+                dot.className = `sidebar-dot${i === 0 ? ' active' : ''}`;
+                dot.setAttribute('aria-label', `Ir a diapositiva ${i + 1}`);
+                dot.onclick = () => goToSlide(i);
+                sidebar.appendChild(dot);
+            }
+        }
+
+        // Update UI
+        function updateUI() {
+            // Update counter
+            const counter = document.getElementById('slideCounter');
+            counter.textContent = `${String(currentSlide + 1).padStart(2, '0')} / ${String(totalSlides).padStart(2, '0')}`;
+
+            // Update progress
+            const progress = document.getElementById('progressFill');
+            progress.style.width = `${((currentSlide + 1) / totalSlides) * 100}%`;
+
+            // Update nav buttons
+            document.getElementById('prevBtn').disabled = currentSlide === 0;
+            document.getElementById('nextBtn').disabled = currentSlide === totalSlides - 1;
+
+            // Update sidebar
+            const dots = document.querySelectorAll('.sidebar-dot');
+            dots.forEach((dot, i) => {
+                dot.classList.toggle('active', i === currentSlide);
+            });
+
+            // Update slides
+            slides.forEach((slide, i) => {
+                slide.classList.remove('active', 'exit-left');
+                if (i === currentSlide) {
+                    slide.classList.add('active');
+                } else if (i < currentSlide) {
+                    slide.classList.add('exit-left');
+                }
+            });
+        }
+
+        function goToSlide(index) {
+            if (index >= 0 && index < totalSlides) {
+                currentSlide = index;
+                updateUI();
+            }
+        }
+
+        function nextSlide() {
+            goToSlide(currentSlide + 1);
+        }
+
+        function prevSlide() {
+            goToSlide(currentSlide - 1);
+        }
+
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            switch (e.key) {
+                case 'ArrowRight':
+                case 'ArrowDown':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'Home':
+                    e.preventDefault();
+                    goToSlide(0);
+                    break;
+                case 'End':
+                    e.preventDefault();
+                    goToSlide(totalSlides - 1);
+                    break;
+                case 'f':
+                case 'F':
+                    if (!e.ctrlKey && !e.metaKey) {
+                        e.preventDefault();
+                        toggleFullscreen();
+                    }
+                    break;
+            }
+        });
+
+        // Touch support
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        document.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        });
+
+        document.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            const diff = touchStartX - touchEndX;
+            if (Math.abs(diff) > 50) {
+                if (diff > 0) nextSlide();
+                else prevSlide();
+            }
+        });
+
+        // Fullscreen
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(() => {});
+            } else {
+                document.exitFullscreen().catch(() => {});
+            }
+        }
+
+        // Initialize
+        initSidebar();
+        updateUI();
+    </script>
+</body>
+</html>
