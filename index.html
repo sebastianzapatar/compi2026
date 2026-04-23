@@ -139,6 +139,34 @@
             cursor: not-allowed;
         }
 
+        .nav-link-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 14px;
+            height: 36px;
+            border-radius: 8px;
+            border: 1px solid rgba(99, 102, 241, 0.35);
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--accent-indigo);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .nav-link-btn:hover {
+            background: rgba(99, 102, 241, 0.22);
+            border-color: rgba(99, 102, 241, 0.6);
+            color: #a5b4fc;
+            transform: translateY(-1px);
+            box-shadow: 0 0 16px rgba(99, 102, 241, 0.2);
+        }
+
         /* ============================================================
            PROGRESS BAR
            ============================================================ */
@@ -1178,6 +1206,10 @@
             <span>LauraSeFue</span>
         </div>
         <div class="navbar-controls">
+            <a class="nav-link-btn" href="laurasefue/presentation_parser.html" target="_blank" id="parserLink"
+               title="Ver presentación del Parser &amp; AST">
+                🌳 Parser &amp; AST
+            </a>
             <span class="slide-counter" id="slideCounter">01 / 18</span>
             <button class="nav-btn" id="prevBtn" onclick="prevSlide()" aria-label="Diapositiva anterior">←</button>
             <button class="nav-btn" id="nextBtn" onclick="nextSlide()" aria-label="Diapositiva siguiente">→</button>
