@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <title>LauraSeFue - Teoría, Parser y AST</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Reveal.js CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reset.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.min.css">
+    
+    <style>
+        /* Modern Glassmorphism & Dynamic Background */
+        body {
+            background: linear-gradient(-45deg, #0b1120, #172a45, #0a192f, #1a2a6c);
+            background-size: 400% 400%;
+            animation: gradientBG 15s ease infinite;
+            font-family: 'Inter', sans-serif;
+            margin: 0;
+            overflow: hidden;
+        }
+        @keyframes gradientBG {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
+        /* Particles effect purely CSS */
+        .particles {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            background-image: radial-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            animation: moveBg 30s linear infinite;
+        }
+        @keyframes moveBg {
+            0% { background-position: 0 0; }
+            100% { background-position: 500px 500px; }
+        }
+
+        .reveal .slides section {
+            background: rgba(10, 25, 47, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(100, 255, 218, 0.2);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5);
+            color: #ccd6f6;
+            text-align: left;
+        }
+
+        .reveal h1, .reveal h2, .reveal h3 {
+            background: linear-gradient(90deg, #64ffda, #00f2fe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            font-family: 'Inter', sans-serif;
+            font-weight: 800;
+            text-transform: none;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .reveal p, .reveal li {
+            font-size: 0.8em;
+            line-height: 1.5;
+            color: #a8b2d1;
+        }
+
+        .reveal pre {
+            background: #011627;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            border: 1px solid rgba(100,255,218,0.1);
+            font-family: 'Fira Code', monospace;
+            font-size: 0.5em;
+            padding: 15px;
+            width: 100%;
+            margin: 20px 0;
+            color: #d6deeb;
+            overflow-x: auto;
+        }
+
+        .container {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .col {
+            flex: 1;
+        }
+        img.rounded {
+            border-radius: 15px;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            border: 1px solid rgba(100, 255, 218, 0.3);
+            max-height: 400px;
+            object-fit: cover;
+            width: 100%;
+            transition: transform 0.3s;
+        }
+        img.rounded:hover {
+            transform: scale(1.02);
+        }
+
+        .highlight {
+            color: #64ffda;
+            font-weight: bold;
+        }
+        .keyword {
+            color: #c792ea;
+        }
+        .function {
+            color: #82aaff;
+        }
+        
+        .badge {
+            background: rgba(100, 255, 218, 0.1);
+            color: #64ffda;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.6em;
+            display: inline-block;
+            margin-bottom: 10px;
+            border: 1px solid #64ffda;
+        }
+        
+        .theory-box {
+            background: rgba(255, 255, 255, 0.03);
+            border-left: 4px solid #00f2fe;
+            padding: 15px;
+            margin-top: 15px;
+            border-radius: 0 10px 10px 0;
+        }
+
+        /* Navigation controls styling */
+        .reveal .controls {
+            color: #64ffda;
+        }
+        .reveal .progress {
+            color: #64ffda;
+        }
+    </style>
+</head>
+<body>
+    <div class="particles"></div>
+    <div class="reveal">
+        <div class="slides">
+
+            <!-- Slide 1: Título -->
+            <section class="center" style="text-align: center;">
+                <span class="badge">Compiladores 2026</span>
+                <h1 style="font-size: 2.5em; text-align: center;">LauraSeFue</h1>
+                <h2 style="text-align: center;">Teoría, Parser y Árbol Sintáctico (AST)</h2>
+                <p style="text-align: center;">De los fundamentos formales al código en producción</p>
+                <img src="https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80" alt="Code Background" class="rounded" style="max-height: 250px; margin-top: 20px;">
+            </section>
+
+            <!-- Slide 2: Compiladores vs Intérpretes -->
+            <section>
+                <h2>1. Teoría: Compiladores vs Intérpretes</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Antes de sumergirnos, ubiquémonos en el ecosistema de los lenguajes:</p>
+                        <ul>
+                            <li><span class="highlight">Compilador (AOT):</span> Traduce TODO el código fuente a código máquina o binario de una vez antes de la ejecución (Ej: C, Go, Rust).</li>
+                            <li><span class="highlight">Intérprete:</span> Procesa y ejecuta el código en tiempo real, instrucción por instrucción.</li>
+                        </ul>
+                        <div class="theory-box">
+                            <p><strong>LauraSeFue</strong> está diseñado como un <em>Tree-Walking Interpreter</em>. Esto significa que nuestra ejecución ocurre directamente recorriendo una estructura en memoria (el árbol) en tiempo real.</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 3: De Chomsky a Backus-Naur -->
+            <section>
+                <h2>2. Orígenes Históricos de la Sintaxis</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>La capacidad de leer código no surgió de la nada. Tiene fuertes bases matemáticas:</p>
+                        <ul>
+                            <li><strong>1956 - Noam Chomsky:</strong> Define la Jerarquía de Chomsky. Los lenguajes de programación pertenecen al <em>Tipo 2: Gramáticas Libres de Contexto (CFG)</em>.</li>
+                            <li><strong>1959 - John Backus y Peter Naur:</strong> Crean la notación <strong>BNF</strong> (Backus-Naur Form) para describir rigurosamente la sintaxis de ALGOL 60.</li>
+                        </ul>
+                        <p>Sin una gramática formal matemática, sería imposible enseñarle a una computadora a validar la sintaxis de forma determinista.</p>
+                    </div>
+                    <div class="col">
+                        <img src="https://images.unsplash.com/photo-1509228468518-180dd4864904?auto=format&fit=crop&w=600&q=80" class="rounded" alt="Math and theory">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 4: ¿Por qué necesitamos un Parser? -->
+            <section>
+                <h2>3. ¿Por qué necesitamos un Parser?</h2>
+                <p>Imagina que tienes este código: <code class="highlight">x = 2 + 3 * 4</code></p>
+                <div class="theory-box">
+                    <p>El código fuente y la lista de tokens entregada por el Lexer son <strong>lineales (unidimensionales)</strong>. No poseen noción de anidamiento, prioridad ni reglas matemáticas.</p>
+                </div>
+                <p>El <strong>Parser (Analizador Sintáctico)</strong> es el componente que se encarga de convertir esa secuencia plana en una representación topológica y estructurada (2D / 3D). Él le dice a la máquina que el <code class="keyword">*</code> tiene precedencia sobre el <code class="keyword">+</code>.</p>
+            </section>
+
+            <!-- Slide 5: CST vs AST -->
+            <section>
+                <h2>4. Parse Tree (CST) vs AST</h2>
+                <p>El <strong>CST</strong> guarda el formato exacto del texto. El <strong>AST</strong> lo "abstrae", manteniendo solo la jerarquía lógica.</p>
+                <div class="container">
+                    <div class="col" style="text-align: center;">
+                        <p style="color: #64ffda;">Parse Tree (CST)</p>
+                        <img src="./assets/cst_tree.png" style="max-height: 280px; object-fit: contain;" class="rounded" alt="CST Diagram">
+                    </div>
+                    <div class="col" style="text-align: center;">
+                        <p style="color: #64ffda;">Abstract Syntax Tree (AST)</p>
+                        <img src="./assets/ast_tree.png" style="max-height: 280px; object-fit: contain;" class="rounded" alt="AST Diagram">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Secciones: Por qué son críticos -->
+            <section>
+                <h2>¿Por qué Parser + AST son CRÍTICOS?</h2>
+                <p>En el desarrollo de compiladores, el Parser y el AST son el corazón del sistema. ¿Qué pasaría si intentáramos omitirlos?</p>
+                <div class="theory-box" style="font-size: 1.1em; text-align: left; background: rgba(0,0,0,0.3); padding: 20px;">
+                    <ul style="list-style-type: none; padding-left: 0;">
+                        <li style="margin: 15px 0;">➔ <span class="highlight">Estructura Matemática</span></li>
+                        <li style="margin: 15px 0;">➔ <span class="highlight">Ejecución Limpia</span></li>
+                        <li style="margin: 15px 0;">➔ <span class="highlight">Capacidad de Optimización</span></li>
+                        <li style="margin: 15px 0;">➔ <span class="highlight">Escalabilidad del Lenguaje</span></li>
+                    </ul>
+                </div>
+                <p style="margin-top: 20px;">Exploremos cada uno de estos puntos en detalle a continuación.</p>
+            </section>
+
+            <section>
+                <h2>1. Sin Parser ➔ <span style="color: #ff5252;">❌ No hay estructura</span></h2>
+                <div class="theory-box">
+                    <p><strong>El problema:</strong> Los tokens son una lista plana unidimensional. El compilador no sabe dónde empieza una expresión y dónde termina.</p>
+                </div>
+                <div class="container">
+                    <div class="col">
+                        <p>Al construir el AST, pasamos de una representación 1D a una <strong>topología en árbol 2D/3D</strong>.</p>
+                        <p>Esto permite que la máquina entienda que <code class="highlight">2 + 3 * 4</code> no se evalúa de izquierda a derecha secuencialmente. El AST aísla el <code class="highlight">3 * 4</code> en una rama más profunda, obligando a resolver la multiplicación primero y garantizando el respeto a las leyes matemáticas.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section>
+                <h2>2. Sin AST ➔ <span style="color: #ff5252;">❌ No hay ejecución limpia</span></h2>
+                <div class="theory-box">
+                    <p><strong>El problema:</strong> Ejecutar código leyendo los tokens al vuelo requiere un intérprete lleno de condicionales (Ifs), y constantes saltos o "backtracking".</p>
+                </div>
+                <p>Con un AST, nuestro Evaluador simplemente hace un recorrido ("Tree-Walking"), delegando el comportamiento a cada clase de nodo. Un nodo <code class="keyword">IfExpression</code> en el árbol sabe exactamente cuáles son sus ramas (consecuencia y alternativa), evitando tener que buscar llaves o palabras clave (<code class="keyword">else</code>) en tiempo de ejecución.</p>
+            </section>
+
+            <section>
+                <h2>3. Sin AST ➔ <span style="color: #ff5252;">❌ No hay optimización</span></h2>
+                <div class="theory-box">
+                    <p><strong>El problema:</strong> Aplicar algoritmos de optimización sobre cadenas de texto es ineficiente y muy propenso a errores catastróficos.</p>
+                </div>
+                <p>El AST permite transformaciones lógicas directas. Por ejemplo, podemos buscar nodos <code class="keyword">BinaryExpression</code> donde ambos lados sean constantes (ej: <code class="highlight">5 + 3</code>) y reemplazarlos por un único <code class="highlight">IntegerLiteral(8)</code>. Esto se llama <em>Constant Folding</em>, y hace que el código se ejecute más rápido sin requerir esfuerzo en tiempo de ejecución.</p>
+            </section>
+
+            <section>
+                <h2>4. Sin AST ➔ <span style="color: #ff5252;">❌ No hay escalabilidad</span></h2>
+                <div class="theory-box">
+                    <p><strong>El problema:</strong> A medida que agregas <em>features</em> complejos (clases, cierres/closures, tipado fuerte), procesar linealmente se vuelve insostenible.</p>
+                </div>
+                <p>El AST desacopla la lectura (Lexer/Parser) de la lógica de evaluación (Evaluador). Puedes modificar la gramática (Front-end) sin reescribir las reglas de ejecución (Back-end), siempre y cuando ambos componentes se comuniquen a través de la misma estructura de árbol acordada.</p>
+            </section>
+
+            <!-- Slide 6: El Flujo del Compilador -->
+            <section>
+                <h2>5. El Flujo de Vida en LauraSeFue</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Para llegar al evaluador, hacemos un puente perfecto:</p>
+                        <ul>
+                            <li><span class="highlight">Lexer (Escáner):</span> Código fuente ➔ Tokens (Lectura plana).</li>
+                            <li><span class="highlight">Parser:</span> Tokens ➔ <span class="highlight">AST</span> (Entendiendo la gramática).</li>
+                            <li><span class="highlight">Evaluador:</span> AST ➔ Ejecución / Resultado (Recorrido de ejecución).</li>
+                        </ul>
+                    </div>
+                    <div class="col">
+                        <img src="https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=600&q=80" class="rounded" alt="Flujo">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 7: ¿Qué es el AST de Laura? -->
+            <section>
+                <h2>6. El AST en nuestro código</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>En el archivo <code>ast.py</code>, el <span class="highlight">AST</span> es una representación jerárquica de clases en Python.</p>
+                        <p>Por ejemplo, <code class="highlight">let x = 5;</code> no es solo un string, es un nodo <code>LetStatement</code> vivo:</p>
+                    </div>
+                    <div class="col">
+                        <pre><code>Program
+└── LetStatement
+    ├── name: Identifier("x")
+    └── value: IntegerLiteral(5)</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 8: Estructura Base del AST -->
+            <section>
+                <h2>7. Jerarquía Base (ast.py)</h2>
+                <p>Todo hereda de <code class="keyword">Node</code>, y se divide en dos mundos conceptuales:</p>
+                <pre><code>class Node(ABC):
+    def token_literal(self) -> str: pass
+    def __str__(self) -> str: pass
+
+class Statement(Node):
+    # SENTENCIAS: Hacen acciones, no retornan un valor usable.
+    # Ej: let x = 5, return x, while, for
+
+class Expression(Node):
+    # EXPRESIONES: Producen un valor cuantificable.
+    # Ej: 5 + 3, miFuncion(), x == y</code></pre>
+            </section>
+
+            <!-- Slide 9: La Evolución de los Parsers -->
+            <section>
+                <h2>8. La Evolución de los Algoritmos de Parseo</h2>
+                <p>Históricamente, los científicos informáticos desarrollaron herramientas (Parser Generators) como YACC, Bison y ANTLR que emplean algoritmos formales LL(k) (Top-Down) o LR(k) (Bottom-up).</p>
+                <div class="theory-box">
+                    <p><strong>El problema:</strong> Escribir un parser "Recursivo Descendente" puro a mano para manejar las reglas de precedencia matemática es agotador y repetitivo. Exige crear docenas de funciones anidadas (ej: <code>parseTerm</code>, <code>parseFactor</code>, <code>parsePower</code>).</p>
+                </div>
+            </section>
+
+            <!-- Slide 10: Vaughan Pratt y su solución -->
+            <section>
+                <h2>9. 1973: El Genio de Vaughan Pratt</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Vaughan Pratt revolucionó la escritura de Parsers creando el <strong>Top-Down Operator Precedence</strong> (hoy llamado Pratt Parsing).</p>
+                        <p>¿Su brillante insight? En vez de anidar funciones gramaticales abstractas, asignamos <strong>propiedades de precedencia</strong> y <strong>funciones de parseo</strong> directamente asociadas a los <span class="highlight">Tipos de Tokens</span>.</p>
+                        <p>Esto permite un parser diminuto, limpio y completamente extensible.</p>
+                    </div>
+                    <div class="col">
+                        <img src="https://images.unsplash.com/photo-1504639725590-34d0984388bd?auto=format&fit=crop&w=600&q=80" class="rounded" alt="Vaughan Pratt Theory">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 11: La Tabla de Prioridades -->
+            <section>
+                <h2>10. Precedencias: ¿Quién Manda?</h2>
+                <p>En el corazón matemático de <code class="highlight">parser.py</code>, existe un <code class="keyword">IntEnum</code> llamado <code>Precedences</code>.</p>
+                <pre><code>class Precedences(IntEnum):
+    LOWEST = 1
+    OR = 2
+    AND = 3
+    EQUALS = 4       # == , !=
+    LESSGREATER = 5  # > , < , >= , <=
+    SUM = 6          # + , -
+    PRODUCT = 7      # * , / , %
+    PREFIX = 8       # -X , !X
+    POWER = 9        # ^
+    CALL = 10        # myFunction(X)</code></pre>
+                <p>Determina numéricamente que <code class="highlight">*</code> (PRODUCT=7) domina sobre <code class="highlight">+</code> (SUM=6).</p>
+            </section>
+
+            <!-- Slide 12: Funciones Prefix e Infix -->
+            <section>
+                <h2>11. El Dualismo Prefix / Infix</h2>
+                <p>Pratt asocia cada token a hasta dos roles sintácticos:</p>
+                <ul>
+                    <li><code class="function">Prefix (Prefijo):</code> Qué hace si aparece <strong>sin nada a su izquierda</strong>. (Ej: <code class="keyword">-</code>5, <code class="keyword">!</code>true, <code class="keyword">(</code>, identificador).</li>
+                    <li><code class="function">Infix (Infijo):</code> Qué hace si aparece <strong>en medio de dos operandos</strong>. (Ej: 5 <code class="keyword">+</code> 3, fun<code class="keyword">(</code>args<code class="keyword">)</code>).</li>
+                </ul>
+            </section>
+
+            <!-- Slide 13: Diccionarios de Parseo -->
+            <section>
+                <h2>12. Mapeando Tokens a Funciones</h2>
+                <p>En el inicializador del Parser, los diccionarios de registro unen la teoría con Python:</p>
+                <pre><code>self._prefix_parse_fns: Dict[TokenType, PrefixParseFn] = {
+    TokenType.IDENTIFIER: self._parse_identifier,
+    TokenType.INTEGER:    self._parse_integer_literal,
+    TokenType.MINUS:      self._parse_prefix_expression,
+    TokenType.LPAREN:     self._parse_grouped_expression,
+}
+
+self._infix_parse_fns: Dict[TokenType, InfixParseFn] = {
+    TokenType.PLUS:     self._parse_infix_expression,
+    TokenType.MULTIPLY: self._parse_infix_expression,
+    TokenType.LPAREN:   self._parse_call_expression,
+}</code></pre>
+            </section>
+
+            <!-- Slide 13.1: Explicación de Prefix Functions -->
+            <section>
+                <h2>12.1. Anatomía de una Función Prefix</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>¿Qué ocurre dentro de una función Prefix? Veamos el caso más simple: un identificador (<code class="highlight">x</code>).</p>
+                        <p>Simplemente toma el token actual, crea el nodo AST y lo devuelve. No interactúa con otros tokens porque no es un operador.</p>
+                    </div>
+                    <div class="col">
+                        <pre><code>def _parse_identifier(self) -> Identifier:
+    # Retorna un nodo AST 'Identifier'
+    # usando el _current_token que le cedió el bucle principal
+    return Identifier(
+        token=self._current_token,
+        value=self._current_token.literal
+    )</code></pre>
+                    </div>
+                </div>
+                <div class="container" style="margin-top: 10px;">
+                    <div class="col">
+                        <p>Otro caso: números enteros (<code class="highlight">5</code>).</p>
+                        <p>Aquí la función debe, además, intentar convertir el literal de texto a un entero (Int), manejando posibles errores del programador.</p>
+                    </div>
+                    <div class="col">
+                        <pre><code>def _parse_integer_literal(self) -> Expression | None:
+    literal = IntegerLiteral(token=self._current_token)
+    try:
+        literal.value = int(self._current_token.literal)
+    except ValueError:
+        self._errors.append(f"No se pudo convertir a entero")
+        return None
+    return literal</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 14: Construyendo el Programa -->
+            <section>
+                <h2>13. Bucle Principal: parse_program</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Todo el análisis arranca en <code class="function">parse_program()</code>.</p>
+                        <p>Recorre tokens llamando a <code class="function">_parse_statement()</code> hasta encontrar el fin del archivo (EOF).</p>
+                        <p>Esto representa el <strong>nodo raíz</strong> del árbol: un nodo <code class="keyword">Program</code> lleno de listas de sentencias.</p>
+                    </div>
+                    <div class="col">
+                        <img src="https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?auto=format&fit=crop&w=600&q=80" class="rounded" alt="Matrix">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 15: Despacho de Sentencias -->
+            <section>
+                <h2>14. Despacho Recursivo: _parse_statement</h2>
+                <p>Determina qué <strong>sub-árbol</strong> armar basado en el <code class="highlight">_current_token</code>.</p>
+                <pre><code>def _parse_statement(self):
+    match self._current_token.token_type:
+        case TokenType.LET:
+            return self._parse_let_statement()
+        case TokenType.RETURN:
+            return self._parse_return_statement()
+        case TokenType.WHILE:
+            return self._parse_while_statement()
+        case _:
+            return self._parse_expression_statement()</code></pre>
+            </section>
+
+            <!-- Slide 15.1: Explicación de Código: Let Statement -->
+            <section>
+                <h2>14.1. Análisis de Código: <code style="text-transform: lowercase;">let</code></h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Analicemos cómo el parser procesa <code class="highlight">let x = 5;</code></p>
+                        <ol>
+                            <li>Instancia el nodo <code>LetStatement</code> usando el token actual (<code class="keyword">let</code>).</li>
+                            <li><strong><code class="function">_expected_token</code></strong>: Exige que siga un <code>IDENTIFIER</code>. Si es correcto, avanza y extrae su valor ("x").</li>
+                            <li>Exige que siga un token <code>ASSIGN</code> (<code class="keyword">=</code>).</li>
+                            <li>Delega el resto a <code>_parse_expression</code> para capturar el valor ("5").</li>
+                        </ol>
+                    </div>
+                    <div class="col">
+                        <pre><code>def _parse_let_statement(self) -> LetStatement | None:
+    # 1. Creamos el nodo statement con el token 'let'
+    statement = LetStatement(token=self._current_token)
+
+    # 2. Validamos identificador y lo guardamos
+    if not self._expected_token(TokenType.IDENTIFIER):
+        return None
+    statement.name = Identifier(token=self._current_token, \
+                                value=self._current_token.literal)
+
+    # 3. Validamos el signo igual
+    if not self._expected_token(TokenType.ASSIGN):
+        return None
+
+    # 4. Avanzamos y parseamos el valor a la derecha
+    self._advance_tokens()
+    statement.value = self._parse_expression(Precedences.LOWEST)
+
+    # Limpieza final (consumimos ';' si existe)
+    if self._peek_token_is(TokenType.SEMICOLON):
+        self._advance_tokens()
+
+    return statement</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 15.2: Explicación de Código: Return Statement -->
+            <section>
+                <h2>14.2. Análisis de Código: <code style="text-transform: lowercase;">return</code></h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Para <code class="highlight">return valor;</code> la lógica es similar pero más condensada:</p>
+                        <ol>
+                            <li>Se crea <code>ReturnStatement</code> con el token <code class="keyword">return</code>.</li>
+                            <li>No hay variable ni <code class="keyword">=</code>, así que avanzamos directamente al valor a retornar.</li>
+                            <li>Capturamos toda la expresión con <code>_parse_expression(LOWEST)</code>.</li>
+                        </ol>
+                        <p>Esta estructura predecible es típica del <strong>Recursive Descent Parsing</strong> en sentencias.</p>
+                    </div>
+                    <div class="col">
+                        <pre><code>def _parse_return_statement(self) -> ReturnStatement:
+    # 1. Instanciamos el nodo y avanzamos
+    statement = ReturnStatement(token=self._current_token)
+    self._advance_tokens()
+
+    # 2. Parseamos lo que siga al 'return'
+    statement.return_value = self._parse_expression(Precedences.LOWEST)
+
+    # 3. Consumimos el ';' opcional
+    if self._peek_token_is(TokenType.SEMICOLON):
+        self._advance_tokens()
+
+    return statement</code></pre>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 16: La Magia de las Expresiones -->
+            <section>
+                <h2>15. El Corazón del Algoritmo: _parse_expression</h2>
+                <p>La culminación de la teoría de Pratt Parsing ocurre aquí:</p>
+                <pre><code>def _parse_expression(self, precedence):
+    # 1. Obtener función PREFIX para el token inicial
+    prefix_fn = self._prefix_parse_fns[self._current_token.token_type]
+    left_expression = prefix_fn()
+
+    # 2. La magia: Mientras el siguiente operador tenga MAYOR precedencia
+    while precedence < self._peek_precedence():
+        infix_fn = self._infix_parse_fns[self._peek_token.token_type]
+        self._advance_tokens()
+        # 3. La expresión actual (left) es engullida por el nuevo operador
+        left_expression = infix_fn(left_expression)
+
+    return left_expression</code></pre>
+            </section>
+
+            <!-- Slide 17: Ejemplo de Parseo Parte 1 -->
+            <section>
+                <h2>16. Ejemplo de Gravedad: 5 + 3 * 2</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>1. <code class="function">_parse_expression(LOWEST)</code> comienza el proceso.</p>
+                        <p>2. Token '5' ➔ <code class="function">prefix_fn</code> retorna <code class="highlight">IntegerLiteral(5)</code>.</p>
+                        <p>3. El token peek es '+'. Su precedencia es SUM (6), mayor que LOWEST (1).</p>
+                        <p>4. <code class="function">infix_fn</code> para '+' captura el '5' como lado izquierdo.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 18: Ejemplo de Parseo Parte 2 -->
+            <section>
+                <h2>17. Ejemplo de Gravedad: 5 + 3 * 2</h2>
+                <div class="container">
+                    <div class="col">
+                        <p>Dentro de la función infix del '+':</p>
+                        <p>1. Llama recursivamente a <code class="function">_parse_expression(SUM)</code> para buscar el lado derecho.</p>
+                        <p>2. Lee '3'. Retorna un AST <code class="highlight">IntegerLiteral(3)</code>.</p>
+                        <p>3. PERO el token peek ahora es '*'. Su precedencia es PRODUCT (7). <strong>¡PRODUCT(7) > SUM(6)!</strong></p>
+                        <p>4. El bucle obliga a que el '*' devore el '3' primero, asociando la multiplicación antes que la suma y forjando un AST perfecto.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 19: Alterando el Flujo: Paréntesis -->
+            <section>
+                <h2>18. Agrupación y Paréntesis</h2>
+                <p>¿Qué pasa con <code class="highlight">(5 + 3) * 2</code>?</p>
+                <p>En el AST, no existe un nodo "Paréntesis". Cuando el token es <code class="keyword">LPAREN '('</code>, se ejecuta una función prefix que altera la precedencia forzosamente:</p>
+                <pre><code>def _parse_grouped_expression(self):
+    self._advance_tokens() # Consume '('
+    
+    # Resetea la precedencia al mínimo. Evalúa todo el interior "aislado".
+    expression = self._parse_expression(Precedences.LOWEST)
+    
+    self._expected_token(TokenType.RPAREN) # Consume el ')'
+    return expression</code></pre>
+            </section>
+
+            <!-- Slide 20: Funciones y Llamadas -->
+            <section>
+                <h2>19. Expresiones Avanzadas: Funciones</h2>
+                <div class="container">
+                    <div class="col">
+                        <p><strong>Definición:</strong> <code class="function">_parse_function_literal</code> crea funciones anónimas (closures), empaquetando lista de parámetros y bloque de cuerpo en un nodo.</p>
+                        <p><strong>Llamada:</strong> El paréntesis de apertura <code class="keyword">LPAREN '('</code> también tiene un rol <span class="highlight">INFIX</span>. Si sigue a un identificador, invoca <code class="function">_parse_call_expression</code> para recolectar argumentos separados por comas.</p>
+                    </div>
+                    <div class="col">
+                        <img src="https://images.unsplash.com/photo-1605379399642-870262d3d051?auto=format&fit=crop&w=600&q=80" class="rounded" alt="Code Editor">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Slide 21: Manejo de Errores -->
+            <section>
+                <h2>20. Robustez, no Explosiones</h2>
+                <p>Un buen Parser, desde los tiempos de ALGOL, no explota al primer error.</p>
+                <p>Si encuentra un token inesperado, usa un mecanismo de "recovery" ligero con <code class="function">self._expected_token(tipo)</code>.</p>
+                <p>En vez de levantar una excepción fatal, agrega un mensaje semántico a la lista <code class="highlight">self._errors</code> y devuelve <code class="keyword">None</code>. Esto te permite mostrar todos los errores sintácticos de una sola vez al programador.</p>
+            </section>
+
+            <!-- Slide 22: Trabajo Futuro - El Evaluador -->
+            <section>
+                <h2>21. Trabajo Futuro: Construyendo el Evaluador</h2>
+                <p>El AST es solo la partitura musical. El Evaluador es la orquesta.</p>
+                <ul>
+                    <li><span class="highlight">Objetos:</span> Representaciones dinámicas de ejecución (Integer, String, Function Object).</li>
+                    <li><span class="highlight">La Función Eval:</span> Método de Tree-Walking que visita nodos usando pattern matching (`match-case`).</li>
+                    <li><span class="highlight">Environment (Entorno):</span> Tabla hash (diccionario) que asocia strings de variables (Identificadores) con objetos evaluados en memoria.</li>
+                    <li><span class="highlight">Lexical Scoping:</span> Al instanciar una función, debemos guardar una referencia al Environment actual para lograr soportar recursión y <em>Closures</em>.</li>
+                </ul>
+            </section>
+
+            <!-- Slide 23: Cierre -->
+            <section class="center" style="text-align: center;">
+                <h1>El Paradigma Completo</h1>
+                <p>Del marco teórico de Chomsky y Pratt al código Python moderno de LauraSeFue.</p>
+                <p><span class="highlight">Siguiente Gran Desafío:</span> Dar vida lógica al árbol a través del Tree-Walking Evaluator.</p>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Reveal.js JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/reveal.js/4.3.1/reveal.js"></script>
+    <script>
+        Reveal.initialize({
+            hash: true,
+            slideNumber: 'c/t',
+            autoSlide: 0, 
+            loop: true,
+            transition: 'convex',
+            backgroundTransition: 'zoom'
+        });
+    </script>
+</body>
+</html>
