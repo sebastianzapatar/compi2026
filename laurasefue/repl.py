@@ -3,12 +3,13 @@
 #
 # Interfaz interactiva para probar el compilador LauraSeFue.
 # Permite escribir código y ver:
-#   - Los tokens generados por el Lexer
-#   - El AST generado por el Parser
+#   - Los tokens generados por el Lexer        (modo: lexer)
+#   - El AST generado por el Parser            (modo: parser)
+#   - El resultado de evaluación               (modo: eval)   ← NUEVO
 #
 # Comandos especiales:
 #   salir()  → Termina el REPL
-#   modo()   → Alterna entre modo 'lexer' y modo 'parser'
+#   modo()   → Cicla entre modos: parser → eval → lexer → parser
 #   ayuda()  → Muestra los comandos disponibles
 # =============================================================================
 
@@ -16,6 +17,9 @@ from laurasefue.lexer import Lexer
 from laurasefue.parser import Parser
 from laurasefue.tokens import Token, TokenType
 from laurasefue.ast_visualizer import visualize
+from laurasefue.evaluator import evaluate
+from laurasefue.environment import Environment
+from laurasefue.object_system import ObjectType, NULL
 
 # Token constante para detectar fin de entrada
 EOF_TOKEN: Token = Token(TokenType.EOF, '')
@@ -30,6 +34,9 @@ CYAN    = '\033[96m'
 MAGENTA = '\033[95m'
 DIM     = '\033[2m'
 
+# Orden de ciclo de modos
+_MODES = ['eval', 'parser', 'lexer']
+
 
 def _print_banner() -> None:
     """Imprime el banner de bienvenida del REPL."""
@@ -37,7 +44,7 @@ def _print_banner() -> None:
 {CYAN}{BOLD}╔═══════════════════════════════════════════════════╗
 ║       🌿  LauraSeFue — REPL Interactivo  🌿       ║
 ╠═══════════════════════════════════════════════════╣
-║  Escribe código para ver el AST generado.         ║
+║  Escribe código para probar el intérprete.        ║
 ║  Comandos: salir() · modo() · ayuda()             ║
 ╚═══════════════════════════════════════════════════╝{RESET}
 """)
@@ -48,20 +55,27 @@ def _print_help() -> None:
     print(f"""
 {YELLOW}{BOLD}Comandos disponibles:{RESET}
   {GREEN}salir(){RESET}  → Terminar el REPL
-  {GREEN}modo(){RESET}   → Alternar entre modo 'lexer' y 'parser'
+  {GREEN}modo(){RESET}   → Ciclar entre modos (eval → parser → lexer → eval)
   {GREEN}ayuda(){RESET}  → Mostrar esta ayuda
 
-{YELLOW}{BOLD}Modo Lexer:{RESET}
-  Muestra los tokens generados por el analizador léxico.
+{YELLOW}{BOLD}Modo Eval (por defecto):{RESET}
+  Evalúa el código y muestra el resultado. ¡El intérprete completo!
 
 {YELLOW}{BOLD}Modo Parser:{RESET}
   Muestra el Árbol Sintáctico Abstracto (AST) generado.
 
+{YELLOW}{BOLD}Modo Lexer:{RESET}
+  Muestra los tokens generados por el analizador léxico.
+
 {YELLOW}{BOLD}Ejemplos de código:{RESET}
-  {DIM}let x = 5 + 3;{RESET}
-  {DIM}let suma = function(a, b) {{ return a + b; }};{RESET}
-  {DIM}if (x > 0) {{ print(x); }} else {{ print(0); }}{RESET}
-  {DIM}while (x < 10) {{ let x = x + 1; }}{RESET}
+  {DIM}let x = 10 + 5;{RESET}
+  {DIM}print(x * 2);{RESET}
+  {DIM}let potencia = 2 ^ 8; print(potencia);{RESET}
+  {DIM}let modulo = 17 % 5; print(modulo);{RESET}
+  {DIM}print(3 > 2 and 5 != 6);{RESET}
+  {DIM}let fact = function(n) {{ if (n <= 1) {{ return 1; }} return n * fact(n - 1); }};{RESET}
+  {DIM}print(fact(10));{RESET}
+  {DIM}for (let i = 0; i < 5; let i = i + 1) {{ print(i); }}{RESET}
 """)
 
 
@@ -103,27 +117,80 @@ def _show_ast(source: str) -> None:
     print()
 
 
+def _eval_source(source: str, env: Environment) -> None:
+    """
+    Evalúa el código fuente dado y muestra el resultado.
+
+    1. Lexer → tokens
+    2. Parser → AST  (si hay errores de parseo, los muestra)
+    3. Evaluator → Object  (si hay errores de ejecución, los muestra en rojo)
+    4. Si el resultado no es NULL, lo imprime en verde.
+
+    El entorno `env` se reutiliza entre llamadas para que las variables
+    declaradas persistan durante la sesión del REPL.
+    """
+    lexer = Lexer(source)
+    parser = Parser(lexer)
+    program = parser.parse_program()
+
+    # ── Errores de parseo ──────────────────────────────────────────────────
+    if parser.errors:
+        print(f"\n{RED}{BOLD}═══ Errores de parseo ═══{RESET}")
+        for error in parser.errors:
+            print(f"  {RED}✗ {error}{RESET}")
+        print()
+        return
+
+    # ── Evaluación ─────────────────────────────────────────────────────────
+    result = evaluate(program, env)
+
+    if result is None:
+        return
+
+    # ── Mostrar errores de ejecución ───────────────────────────────────────
+    if result.type == ObjectType.ERROR:
+        print(f"\n  {RED}{BOLD}✗ {result.inspect()}{RESET}\n")
+        return
+
+    # ── Mostrar resultado (solo si no es null) ─────────────────────────────
+    if result is not NULL and result.type != ObjectType.NULL:
+        print(f"  {GREEN}▶ {result.inspect()}{RESET}")
+
+
 def start_repl() -> None:
     """
     Inicia el REPL (Read-Eval-Print Loop).
 
-    Modos disponibles:
-      - 'parser' (por defecto): muestra el AST generado por el parser
-      - 'lexer': muestra los tokens generados por el lexer
+    Modos disponibles (ciclados con modo()):
+      - 'eval'   (por defecto): evalúa el código y muestra el resultado
+      - 'parser': muestra el AST generado por el parser
+      - 'lexer':  muestra los tokens generados por el lexer
+
+    El entorno global persiste durante toda la sesión: las variables
+    declaradas con `let` están disponibles en entradas posteriores.
 
     Soporta entrada multilínea: si se detecta '{' sin cerrar,
     continúa leyendo líneas hasta que se cierre el bloque.
     """
     _print_banner()
 
-    # Modo inicial: parser (el más útil para probar)
-    current_mode = 'parser'
+    # Modo inicial: eval (el más útil para probar el intérprete)
+    current_mode = 'eval'
     print(f"  {DIM}Modo actual: {GREEN}{BOLD}{current_mode}{RESET}\n")
+
+    # Entorno global persistente para toda la sesión del REPL
+    global_env = Environment()
 
     while True:
         try:
-            # Prompt principal
-            prompt = f"{CYAN}{BOLD}>> {RESET}"
+            # Prompt con indicación del modo actual
+            mode_indicator = {
+                'eval':   f'{GREEN}eval{RESET}',
+                'parser': f'{CYAN}ast{RESET}',
+                'lexer':  f'{YELLOW}lex{RESET}',
+            }.get(current_mode, current_mode)
+
+            prompt = f"{CYAN}{BOLD}[{mode_indicator}{CYAN}{BOLD}]>> {RESET}"
             source = input(prompt)
 
         except (EOFError, KeyboardInterrupt):
@@ -135,13 +202,14 @@ def start_repl() -> None:
         if not source.strip():
             continue
 
-        # ── Comandos especiales ──────────────────────────────────────────
+        # ── Comandos especiales ──────────────────────────────────────────────
         if source.strip() == 'salir()':
             print(f"\n{YELLOW}¡Hasta luego! 👋{RESET}")
             break
 
         if source.strip() == 'modo()':
-            current_mode = 'lexer' if current_mode == 'parser' else 'parser'
+            idx = _MODES.index(current_mode)
+            current_mode = _MODES[(idx + 1) % len(_MODES)]
             print(f"  {DIM}Modo cambiado a: {GREEN}{BOLD}{current_mode}{RESET}\n")
             continue
 
@@ -149,7 +217,7 @@ def start_repl() -> None:
             _print_help()
             continue
 
-        # ── Soporte multilínea ───────────────────────────────────────────
+        # ── Soporte multilínea ───────────────────────────────────────────────
         # Si la línea tiene más '{' que '}', sigue leyendo
         open_braces = source.count('{') - source.count('}')
         while open_braces > 0:
@@ -161,8 +229,10 @@ def start_repl() -> None:
             except (EOFError, KeyboardInterrupt):
                 break
 
-        # ── Procesar según el modo ───────────────────────────────────────
+        # ── Procesar según el modo ───────────────────────────────────────────
         if current_mode == 'lexer':
             _show_tokens(source)
-        else:
+        elif current_mode == 'parser':
             _show_ast(source)
+        else:
+            _eval_source(source, global_env)
