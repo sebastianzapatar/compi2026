@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<title>Respuestas — Arquitectura del Intérprete LauraSeFue</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Fira+Code:wght@400;500&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:'Inter',sans-serif; background:#0f0f1a; color:#e0e0e0; line-height:1.7; padding:40px 60px; }
+  h1 { font-size:2.2rem; font-weight:900; text-align:center; background:linear-gradient(135deg,#7c3aed,#06b6d4); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:8px; }
+  .subtitle { text-align:center; color:#94a3b8; font-size:1rem; margin-bottom:40px; }
+  .question { background:#1a1a2e; border-left:4px solid #7c3aed; border-radius:12px; padding:30px 35px; margin-bottom:35px; page-break-inside:avoid; }
+  .question h2 { font-size:1.3rem; font-weight:700; color:#c084fc; margin-bottom:16px; }
+  .question h3 { font-size:1.05rem; font-weight:600; color:#38bdf8; margin:18px 0 10px; }
+  p { margin-bottom:12px; }
+  code { font-family:'Fira Code',monospace; background:#2d2b55; padding:2px 6px; border-radius:4px; font-size:0.88em; color:#7dd3fc; }
+  pre { background:#1e1e3f; border-radius:8px; padding:18px; overflow-x:auto; margin:14px 0; font-size:0.85em; line-height:1.6; }
+  pre code { background:none; padding:0; color:#c4b5fd; }
+  .keyword { color:#c084fc; font-weight:600; }
+  .comment { color:#6b7280; font-style:italic; }
+  .string { color:#34d399; }
+  .number { color:#fbbf24; }
+  .fn { color:#38bdf8; }
+  img { max-width:520px; display:block; margin:18px auto; border-radius:10px; border:1px solid #334155; }
+  table { width:100%; border-collapse:collapse; margin:14px 0; font-size:0.9em; }
+  th { background:#2d2b55; color:#c084fc; padding:10px 14px; text-align:left; }
+  td { padding:10px 14px; border-bottom:1px solid #1e293b; }
+  .highlight { background:#2d2b55; border-radius:8px; padding:16px 20px; margin:14px 0; border-left:3px solid #38bdf8; }
+  .file-ref { color:#94a3b8; font-size:0.82em; }
+  @media print { body { padding:20px 30px; } .question { break-inside:avoid; } }
+</style>
+</head>
+<body>
+
+<h1>Arquitectura del Intérprete — LauraSeFue</h1>
+<p class="subtitle">Respuestas técnicas con referencias al código fuente</p>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PREGUNTA 1 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="question">
+<h2>1. ¿Cómo determina el intérprete si <code>+</code> debe sumar números o concatenar cadenas?</h2>
+
+<p>La decisión <strong>no ocurre en el Lexer ni en el Parser</strong>. El Lexer solo genera un token <code>PLUS</code> y el Parser solo construye un nodo <code>InfixExpression</code> con operador <code>"+"</code>. <strong>Es el Evaluador</strong> quien, en tiempo de ejecución, inspecciona los tipos de los operandos ya evaluados y despacha a la función correcta.</p>
+
+<h3>Mecanismo: Despacho dinámico por tipo</h3>
+<p>En <code>evaluator.py</code>, la función <code>_evaluate_infix_expression()</code> (línea 412) recibe el operador y los dos objetos ya evaluados. Luego usa una cadena de <code>isinstance()</code> para decidir:</p>
+
+<pre><code><span class="comment"># evaluator.py — líneas 419-433</span>
+<span class="keyword">def</span> <span class="fn">_evaluate_infix_expression</span>(operator, left, right):
+    <span class="comment"># Caso 1: ambos son enteros → aritmética entera</span>
+    <span class="keyword">if</span> isinstance(left, Integer) <span class="keyword">and</span> isinstance(right, Integer):
+        <span class="keyword">return</span> _evaluate_integer_infix(operator, left, right)
+
+    <span class="comment"># Caso 2: al menos uno es float → aritmética flotante</span>
+    <span class="keyword">if</span> isinstance(left, (Integer, Float)) <span class="keyword">and</span> isinstance(right, (Integer, Float)):
+        <span class="keyword">return</span> _evaluate_float_infix(operator, Float(float(left.value)), ...)
+
+    <span class="comment"># Caso 3: ambos son strings → concatenación</span>
+    <span class="keyword">if</span> isinstance(left, String) <span class="keyword">and</span> isinstance(right, String):
+        <span class="keyword">return</span> _evaluate_string_infix(operator, left, right)</code></pre>
+
+<img src="type_dispatch.png" alt="Despacho dinámico del operador +">
+
+<h3>Ejemplo concreto en nuestro lenguaje</h3>
+<pre><code><span class="comment">// Suma numérica: ambos operandos son Integer</span>
+<span class="keyword">let</span> resultado = <span class="number">2</span> + <span class="number">1</span>;   <span class="comment">// → Integer(3) vía _evaluate_integer_infix</span>
+
+<span class="comment">// Concatenación: ambos operandos son String</span>
+<span class="keyword">let</span> saludo = <span class="string">"hola"</span> + <span class="string">" "</span> + <span class="string">"mundo"</span>;  <span class="comment">// → String("hola mundo") vía _evaluate_string_infix</span></code></pre>
+
+<div class="highlight">
+<strong>Resumen:</strong> El mismo token <code>PLUS</code> y el mismo nodo <code>InfixExpression</code> producen operaciones distintas. La decisión la toma el Evaluador en tiempo de ejecución según el tipo (<code>ObjectType</code>) de los operandos evaluados.
+</div>
+<p class="file-ref">📄 Archivo: evaluator.py — líneas 412-464</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PREGUNTA 2 (original pregunta 2 de Fibonacci, ya respondida) -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="question">
+<h2>2. ¿Cómo evita el intérprete que <code>n</code> de una llamada recursiva sobrescriba el <code>n</code> de otra?</h2>
+
+<p>Mediante la <strong>creación de un nuevo <code>Environment</code></strong> (entorno) por cada llamada a función. Cada entorno tiene su propio diccionario <code>_store</code> donde se almacena <code>n</code> de forma aislada.</p>
+
+<h3>Código clave</h3>
+<pre><code><span class="comment"># evaluator.py — _extend_function_env (línea 651)</span>
+<span class="keyword">def</span> <span class="fn">_extend_function_env</span>(function, args):
+    env = Environment.new_enclosed(function.env)  <span class="comment"># Nuevo entorno hijo</span>
+    <span class="keyword">for</span> param, arg <span class="keyword">in</span> zip(function.parameters, args):
+        env.set(param.value, arg)  <span class="comment"># n se guarda AQUÍ, en el entorno local</span>
+    <span class="keyword">return</span> env</code></pre>
+
+<img src="environment_chain.png" alt="Cadena de entornos en Fibonacci">
+
+<div class="highlight">
+<strong>Resumen:</strong> Cada llamada recursiva crea un <code>Environment</code> nuevo con <code>new_enclosed()</code>. Cada <code>n</code> vive en su propio <code>_store</code>, por lo que nunca se sobrescribe el de otra llamada.
+</div>
+<p class="file-ref">📄 Archivos: evaluator.py líneas 651-676 · object_system.py líneas 282-369</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PREGUNTA 3 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="question">
+<h2>3. ¿Dónde se decide la precedencia de operadores? ¿Cómo se ve <code>2 ^ 3 + 1</code> en el AST?</h2>
+
+<p>La precedencia se decide <strong>en el Parser</strong>, específicamente en el <strong>Pratt Parser</strong> (Top-Down Operator Precedence). Ni el Lexer ni el Evaluador participan en esta decisión.</p>
+
+<h3>Tabla de precedencias</h3>
+<table>
+<tr><th>Nivel</th><th>Precedencia</th><th>Operadores</th></tr>
+<tr><td>1</td><td>LOWEST</td><td>(base)</td></tr>
+<tr><td>2–3</td><td>OR / AND</td><td><code>or</code>, <code>and</code></td></tr>
+<tr><td>4–5</td><td>EQUALS / LESSGREAT</td><td><code>==</code> <code>!=</code> <code>&lt;</code> <code>&gt;</code></td></tr>
+<tr><td>6</td><td>SUM</td><td><code>+</code> <code>-</code></td></tr>
+<tr><td>7</td><td>PRODUCT</td><td><code>*</code> <code>/</code> <code>%</code></td></tr>
+<tr><td>8</td><td>PREFIX</td><td><code>-x</code> <code>!x</code></td></tr>
+<tr><td>9</td><td>POWER</td><td><code>^</code></td></tr>
+<tr><td>10</td><td>CALL</td><td><code>f(args)</code></td></tr>
+</table>
+
+<pre><code><span class="comment"># parser.py — líneas 45-83</span>
+<span class="keyword">class</span> <span class="fn">Precedence</span>(IntEnum):
+    LOWEST    = <span class="number">1</span>
+    SUM       = <span class="number">6</span>   <span class="comment"># + y -</span>
+    POWER     = <span class="number">9</span>   <span class="comment"># ^  ← ¡mayor que SUM!</span>
+
+PRECEDENCES = {
+    TokenType.PLUS: Precedence.SUM,      <span class="comment"># + tiene prec. 6</span>
+    TokenType.POW:  Precedence.POWER,    <span class="comment"># ^ tiene prec. 9</span>
+}</code></pre>
+
+<h3>Algoritmo del Pratt Parser</h3>
+<p>La función <code>_parse_expression(precedence)</code> (línea 480) usa un <strong>bucle while</strong>: mientras el siguiente token tenga precedencia <strong>mayor</strong> que la actual, lo "absorbe" como operador infijo. Esto garantiza que <code>^</code> (prec. 9) se agrupe antes que <code>+</code> (prec. 6).</p>
+
+<pre><code><span class="comment"># parser.py — _parse_expression (línea 480)</span>
+<span class="keyword">def</span> <span class="fn">_parse_expression</span>(self, precedence):
+    left = prefix_fn()
+    <span class="keyword">while</span> precedence < self._peek_precedence():
+        left = infix_fn(left)   <span class="comment"># El operador más fuerte "atrapa" sus operandos</span>
+    <span class="keyword">return</span> left</code></pre>
+
+<h3>AST resultante de <code>2 ^ 3 + 1</code></h3>
+<img src="ast_power_tree.png" alt="AST de 2 ^ 3 + 1">
+<p>El <code>^</code> queda <strong>más profundo</strong> en el árbol (se evalúa primero), y el <code>+</code> queda como raíz (se evalúa después). Resultado: <code>(2^3) + 1 = 9</code>.</p>
+
+<h3>Caso <code>!!!!false</code>: negaciones múltiples</h3>
+<p>Para el operador prefijo <code>!</code>, el Parser llama a <code>_parse_prefix_expression()</code> (línea 585), que recursivamente parsea la expresión de la derecha con precedencia <code>PREFIX</code>. Cada <code>!</code> genera un <code>PrefixExpression</code> anidado:</p>
+
+<img src="ast_negation_tree.png" alt="AST de !!!!false">
+
+<div class="highlight">
+<strong>Resumen:</strong> La precedencia se decide <strong>100% en el Parser</strong>. El Lexer solo tokeniza y el Evaluador solo recorre el AST ya construido. La estructura del árbol codifica el orden de evaluación.
+</div>
+<p class="file-ref">📄 Archivo: parser.py — líneas 45-83 (precedencias), 480-529 (Pratt Parser)</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PREGUNTA 4 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="question">
+<h2>4. ¿Cómo propagan <code>return</code> y <code>break</code> su señal a través de bloques anidados?</h2>
+
+<p>El intérprete usa un patrón de <strong>"objetos señal"</strong> (sentinel objects): cuando encuentra un <code>return</code> o <code>break</code>, crea un objeto especial que se propaga hacia arriba por la cadena de evaluación sin ser "consumido" hasta llegar al nivel correcto.</p>
+
+<h3>Los objetos señal</h3>
+<table>
+<tr><th>Señal</th><th>Clase</th><th>Se crea en</th><th>Se consume en</th></tr>
+<tr><td><code>return</code></td><td><code>ReturnValue</code></td><td>Línea 92: <code>return ReturnValue(val)</code></td><td>Línea 624: <code>_evaluate_call_expression</code></td></tr>
+<tr><td><code>break</code></td><td><code>_BreakSignal</code></td><td>Línea 112: <code>return _BREAK</code></td><td>Líneas 301/343: dentro de while/for</td></tr>
+<tr><td><code>continue</code></td><td><code>_ContinueSignal</code></td><td>Línea 116: <code>return _CONTINUE</code></td><td>Líneas 304/345: dentro de while/for</td></tr>
+</table>
+
+<h3>Propagación paso a paso</h3>
+<p>Ejemplo: <code>return 42;</code> dentro de un <code>if</code> dentro de un <code>while</code> dentro de una función:</p>
+
+<pre><code><span class="comment">// Código fuente</span>
+<span class="keyword">let</span> buscar = <span class="keyword">function</span>(lista) {
+    <span class="keyword">while</span> (i < <span class="number">10</span>) {
+        <span class="keyword">if</span> (condicion) {
+            <span class="keyword">return</span> <span class="number">42</span>;   <span class="comment">// ← aquí se genera ReturnValue(Integer(42))</span>
+        }
+    }
+};</code></pre>
+
+<p><strong>Cadena de propagación:</strong></p>
+<ol style="margin-left:20px; margin-bottom:14px;">
+<li><code>ReturnStatement</code> → crea <code>ReturnValue(Integer(42))</code></li>
+<li><code>_evaluate_block_statement</code> (bloque del if) → detecta <code>RETURN_VALUE</code>, <strong>lo retorna sin desenvolver</strong> (línea 226)</li>
+<li><code>_evaluate_while_statement</code> → detecta <code>RETURN_VALUE</code>, <strong>lo propaga</strong> (línea 307)</li>
+<li><code>_evaluate_call_expression</code> → <strong>lo desenvuelve</strong>: <code>return evaluated.value</code> → <code>Integer(42)</code> (línea 624)</li>
+</ol>
+
+<pre><code><span class="comment"># evaluator.py — _evaluate_block_statement (línea 210)</span>
+<span class="keyword">for</span> statement <span class="keyword">in</span> block.statements:
+    result = evaluate(statement, env)
+    <span class="keyword">if</span> result <span class="keyword">is not</span> None:
+        rt = result.object_type()
+        <span class="keyword">if</span> rt == ObjectType.RETURN_VALUE <span class="keyword">or</span> rt == ObjectType.ERROR:
+            <span class="keyword">return</span> result   <span class="comment"># ¡Propaga SIN desenvolver!</span>
+        <span class="keyword">if</span> isinstance(result, (_BreakSignal, _ContinueSignal)):
+            <span class="keyword">return</span> result   <span class="comment"># ¡Propaga señales de bucle!</span></code></pre>
+
+<img src="signal_propagation.png" alt="Propagación de señales return y break">
+
+<div class="highlight">
+<strong>Clave:</strong> <code>_evaluate_block_statement</code> propaga <code>ReturnValue</code> <strong>sin desenvolverlo</strong>. Solo <code>_evaluate_call_expression</code> (línea 624) hace el "unwrap" final. Esto garantiza que un <code>return</code> en cualquier nivel de anidamiento siempre salga de la función completa.
+</div>
+<p class="file-ref">📄 Archivo: evaluator.py — líneas 36-48, 88-92, 210-232, 275-311, 575-627</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- PREGUNTA 5 -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+<div class="question">
+<h2>5. ¿Cómo se garantiza que solo se evalúa la rama correcta del <code>if/else</code>?</h2>
+
+<p>A diferencia de <code>A + B</code> (donde se evalúan <strong>ambos</strong> operandos antes de operar), en un <code>if/else</code> el Evaluador usa <strong>evaluación perezosa condicional</strong>: evalúa la condición primero y, según el resultado, <strong>solo invoca <code>evaluate()</code> sobre el bloque correspondiente</strong>.</p>
+
+<h3>En el AST</h3>
+<p>El nodo <code>IfExpression</code> (ast.py línea 437) almacena <strong>todas las ramas como nodos del árbol</strong>, pero el Evaluador decide cuál recorrer:</p>
+
+<pre><code><span class="comment"># ast.py — IfExpression</span>
+<span class="keyword">class</span> <span class="fn">IfExpression</span>(Expression):
+    condition: Expression          <span class="comment"># La condición a evaluar</span>
+    consequence: BlockStatement    <span class="comment"># Rama verdadera (if)</span>
+    alternatives: List[tuple]      <span class="comment"># Ramas elseif [(cond, block), ...]</span>
+    else_block: BlockStatement     <span class="comment"># Rama else (opcional)</span></code></pre>
+
+<h3>En el Evaluador</h3>
+<pre><code><span class="comment"># evaluator.py — _evaluate_if_expression (línea 544)</span>
+<span class="keyword">def</span> <span class="fn">_evaluate_if_expression</span>(node, env):
+    condition = evaluate(node.condition, env)   <span class="comment"># 1. Evalúa SOLO la condición</span>
+
+    <span class="keyword">if</span> _is_truthy(condition):
+        <span class="keyword">return</span> _evaluate_block_statement(node.consequence, env)  <span class="comment"># ✅ Solo esta</span>
+
+    <span class="comment"># Si no, revisa cada elseif EN ORDEN</span>
+    <span class="keyword">for</span> alt_condition, alt_block <span class="keyword">in</span> node.alternatives:
+        alt_val = evaluate(alt_condition, env)
+        <span class="keyword">if</span> _is_truthy(alt_val):
+            <span class="keyword">return</span> _evaluate_block_statement(alt_block, env)  <span class="comment"># ✅ Solo esta</span>
+
+    <span class="comment"># Si ninguna condición fue verdadera y hay else</span>
+    <span class="keyword">if</span> node.else_block <span class="keyword">is not</span> None:
+        <span class="keyword">return</span> _evaluate_block_statement(node.else_block, env)  <span class="comment"># ✅ Solo esta</span>
+
+    <span class="keyword">return</span> NULL</code></pre>
+
+<img src="lazy_evaluation.png" alt="Evaluación perezosa: solo se evalúa la rama correcta">
+
+<h3>Contraste con <code>A + B</code></h3>
+<table>
+<tr><th>Expresión</th><th>Estrategia</th><th>Código</th></tr>
+<tr><td><code>A + B</code></td><td>Evaluación <strong>eager</strong>: evalúa A y B <strong>antes</strong> de sumar</td><td><code>left = evaluate(node.left)</code><br><code>right = evaluate(node.right)</code><br><code>return left + right</code></td></tr>
+<tr><td><code>if/else</code></td><td>Evaluación <strong>condicional</strong>: evalúa la condición y <strong>solo una</strong> rama</td><td><code>if _is_truthy(cond): return evaluate(consequence)</code><br>Las demás ramas <strong>nunca se tocan</strong></td></tr>
+</table>
+
+<div class="highlight">
+<strong>Resumen:</strong> El AST almacena <strong>todas</strong> las ramas como nodos, pero el Evaluador solo llama a <code>_evaluate_block_statement()</code> sobre la rama cuya condición fue verdadera. Las ramas falsas nunca son visitadas por <code>evaluate()</code>, por lo que su código jamás se ejecuta.
+</div>
+<p class="file-ref">📄 Archivo: evaluator.py — líneas 544-572 · ast.py — líneas 437-476</p>
+</div>
+
+<div style="text-align:center; margin-top:40px; color:#64748b; font-size:0.85em;">
+  <p>Lenguaje LauraSeFue — Compiladores 2026</p>
+  <p>Documento generado con referencias al código fuente del intérprete</p>
+</div>
+
+</body>
+</html>

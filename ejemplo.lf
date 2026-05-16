@@ -226,3 +226,9 @@ for (let p = 2; p <= 20; let p = p + 1) {
 }
 
 print("Programa terminado!");
+
+
+
+
+
+ 
